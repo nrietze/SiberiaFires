@@ -1,0 +1,47 @@
+<PAMDataset>
+  <Metadata>
+    <MDI key="AcquisitionDate">44763.087015868055</MDI>
+    <MDI key="BlockName">015284154060_01</MDI>
+    <MDI key="CloudCover">0.000000000000000000</MDI>
+    <MDI key="DataType">Generic</MDI>
+    <MDI key="OffNadir">13.300000000000000711</MDI>
+    <MDI key="ParentRasterType">WorldView-3</MDI>
+    <MDI key="ParentTemplate">Multispectral</MDI>
+    <MDI key="ProductName">ORStandard2A</MDI>
+    <MDI key="SensorAzimuth">95.299999999999997158</MDI>
+    <MDI key="SensorElevation">75.400000000000005684</MDI>
+    <MDI key="SensorName">WorldView-3</MDI>
+    <MDI key="SunAzimuth">175.000000000000000000</MDI>
+    <MDI key="SunElevation">39.100000000000001421</MDI>
+  </Metadata>
+  <Metadata domain="Esri">
+    <MDI key="PyramidResamplingType">AVERAGE</MDI>
+  </Metadata>
+  <PAMRasterBand band="1">
+    <Histograms>
+      <HistItem>
+        <HistMin>1.404752765665762e-06</HistMin>
+        <HistMax>73.52941131591797</HistMax>
+        <BucketCount>256</BucketCount>
+        <IncludeOutOfRange>1</IncludeOutOfRange>
+        <Approximate>0</Approximate>
+        <HistCounts>39062506|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|18744</HistCounts>
+      </HistItem>
+    </Histograms>
+    <Metadata>
+      <MDI key="RadianceBias">-1.806999999999999940</MDI>
+      <MDI key="RadianceGain">0.169537403076923054</MDI>
+      <MDI key="RepresentationType">ATHEMATIC</MDI>
+      <MDI key="SolarIrradiance">1555.109999999999899956</MDI>
+      <MDI key="STATISTICS_COVARIANCES">2.591835999159021</MDI>
+      <MDI key="STATISTICS_EXCLUDEDVALUES"></MDI>
+      <MDI key="STATISTICS_MAXIMUM">73.529411315918</MDI>
+      <MDI key="STATISTICS_MEAN">0.035279128202238</MDI>
+      <MDI key="STATISTICS_MEDIAN">0.000001</MDI>
+      <MDI key="STATISTICS_MINIMUM">1.4047527656658e-06</MDI>
+      <MDI key="STATISTICS_SKIPFACTORX">1</MDI>
+      <MDI key="STATISTICS_SKIPFACTORY">1</MDI>
+      <MDI key="STATISTICS_STDDEV">1.6099180100735</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>
