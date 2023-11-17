@@ -6,11 +6,12 @@ library(tidyverse)
 library(sf)
 library(parallel)
 library(pbapply)
+library(geostats)
 
 # Load list of raster files
-DIR_PLT_20 <- 'C:/data/8_planet/2020/original/'
+raster_path <- 'C:/data/8_planet/2020/original/'
 
-raster_files_20 <- list.files(DIR_PLT_20,
+raster_files_20 <- list.files(raster_path,
                                pattern = '*composite.tif$',
                                full.names = T
 )
@@ -19,8 +20,8 @@ raster_files_20 <- list.files(DIR_PLT_20,
 aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
   mutate(., id = 1:nrow(.))
 
-# Function to extract satellite imagery from AOIs
-extract_values <- function(fn_raster, features, path_out){
+# Function to crop satellite imagery from AOIs
+crop_rasters <- function(fn_raster, features, path_out){
   cat("\nProcessing", fn_raster, "\n")
   
   # Load raster data
@@ -64,14 +65,90 @@ extract_values <- function(fn_raster, features, path_out){
 cl <- makeCluster(7)
 
 clusterEvalQ(cl, c(library(terra),library(sf),library(tidyverse)))
-clusterExport(cl, c("extract_values"), 
+clusterExport(cl, c("crop_rasters"), 
               envir=environment())
 
-# Correct images
+# Crop images
 pblapply(
   raster_files_20,
   features = aois,
-  FUN = extract_values,
+  FUN = crop_rasters,
+  cl = 7)
+
+# Stop cluster
+stopCluster(cl)
+
+
+# Compute focal rasters
+window <- 5
+target_stat <- 'sd'
+
+# Function to compute focal raster statistics
+compute_focal_raster <- function(fn_raster,band,window,f_stat){
+  cat("\nProcessing", fn_raster, "\n")
+  
+  # Load raster
+  rast_refl <- rast(fn_raster)
+  
+  get_CC <- function(img, band) {
+    if (band == "rcc") band_og <- "Red"
+    if (band == "gcc") band_og <- "Green"
+    if (band == "bcc") band_og <- "Blue"
+    img_cc <- img[[band_og]] / (img[["Red"]] + img[["Green"]] + img[["Blue"]])
+    return(img_cc)
+  }
+  
+  compute_image <- function(band){
+    if(band %in% c("rcc", "gcc", "bcc")) {
+      r <- get_CC(rast_refl,band)
+    } else if(band == "ndvi"){
+      r <- (rast_refl[["Red"]] - rast_refl[["NIR"]]) / (rast_refl[["Red"]] + rast_refl[["NIR"]])
+    } else if(band == "bai"){
+      r <- 1 / ( (0.1 - rast_refl[["Red"]])^2 + (0.06 - rast_refl[["NIR"]])^2 )
+    }
+    names(r) <- band
+    
+    return(r)
+  }
+  
+  # Compute band indices
+  image_list <- map(c("rcc","gcc","bcc", "ndvi","bai"),compute_image)
+  
+  # add band indices to multiband raster
+  rsrc <- rast(image_list)
+  r_all <- rast(list(rast_refl,rsrc))
+  
+  # rename new file
+  new_fn_raster <- gsub("composite", paste0("focal_", window, "_", f_stat), fn_raster)
+  
+  focal(r_all, window, 
+        fun = f_stat, 
+        na.rm = T, na.policy = "omit",
+        filename = new_fn_raster,
+        overwrite = T)
+  
+  return(NULL)
+}
+
+raster_path_cropped <- 'C:/data/8_planet/2020/cropped/'
+raster_files_cropped <- list.files(raster_path_cropped,
+                              pattern = '*composite.tif$',
+                              full.names = T
+)
+
+# setup cluster
+cl <- makeCluster(7)
+
+clusterEvalQ(cl, c(library(terra),library(sf),library(tidyverse)))
+clusterExport(cl, c("compute_focal_raster"), 
+              envir=environment())
+
+# Crop images
+pblapply(
+  raster_files_cropped,
+  window = 5,
+  f_stat = 'sd',
+  FUN = compute_focal_raster,
   cl = 7)
 
 # Stop cluster

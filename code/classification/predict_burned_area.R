@@ -40,8 +40,15 @@ sel_bands <- c(2,4,6,8) # B, G, R, NIR
 get_raster_values <- function(fn_raster, features, sel_bands){
   cat("\nProcessing", fn_raster, "\n")
   
+  window <- 5
+  f_stat <- 'sd'
+  
+  fn_raster_focal <- gsub("composite", paste0("focal_", window, "_", f_stat), fn_raster)
+  
   # Load raster data
   rast_refl <- rast(fn_raster)
+  rast_focal <- rast(fn_raster_focal)
+  names(rast_focal) <- paste0(names(rast_focal),'_sd')
   
   # Select training polygons within this raster
   sel_features <- features %>% 
@@ -54,21 +61,28 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   # Extract raster data
   raster_vals <- terra::extract(rast_refl, sel_features)[,c(1,sel_bands+1)]
   
+  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','rcc','bcc','bai','ndvi')]
+  
+  # Change column_names
+  # names(raster_focal_vals)[-1] <- paste0(names(raster_focal_vals)[-1], "_sd")
+  
+  # Combine raster value tables
+  raster_vals_all <- cbind(raster_vals, 
+                           select(raster_focal_vals, -ID))
+  
   training_data <- sel_features %>%
     as.data.frame() %>%
-    select(ID, id, Burned) %>%
-    full_join(raster_vals) %>%
-    select(-ID)
+    select(ID, Burned) %>%
+    full_join(raster_vals_all) 
   
 }
 
-# First cbh (10k per year and class)
 training_sample <- training_data %>%
-  group_by(id,Burned) %>%
+  group_by(ID,Burned) %>%
   na.omit() %>%
   sample_n(10)
 
-training_sample %>% group_by(id, Burned) %>% tally()
+training_sample %>% group_by(ID, Burned) %>% tally()
 
 training_sample <- training_sample %>% 
   mutate(ndvi = (Red - NIR) / (Red + NIR),
@@ -79,49 +93,19 @@ training_sample <- training_sample %>%
   )
 
 # Calculate separability
-sep_stats <- bind_rows(
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(Red),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(Red)
-  ) %>%
-    select(-Red, -Red.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(Green),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(Green)
-  ) %>%
-    select(-Green, -Green.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(Blue),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(Blue)
-  ) %>%
-    select(-Blue, -Blue.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(rcc),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(rcc)
-  ) %>%
-    select(-rcc, -rcc.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(gcc),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(gcc)
-  ) %>%
-    select(-gcc, -gcc.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(bcc),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(bcc)
-  ) %>%
-    select(-bcc, -bcc.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(ndvi),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(ndvi)
-  ) %>%
-    select(-ndvi, -ndvi.1),
-  separability(
-    filter(training_sample, Burned == 0) %>% ungroup() %>% select(bai),
-    filter(training_sample, Burned == 1) %>% ungroup() %>% select(bai)
-  ) %>%
-    select(-bai, -bai.1)
-)
+calculate_separability <- function(variable_name) {
+    separability(
+      filter(training_sample, Burned == 'unburned') %>% ungroup() %>% select(!!variable_name ),
+      filter(training_sample, Burned == 'burned') %>% ungroup() %>% select(!!variable_name )
+    ) %>%
+      select(-!!variable_name , -!!paste0(variable_name,".1"))
+}
 
+bands_of_interest <- c("Red", "Green", "Blue",
+                       "rcc_sd","bcc_sd","bai_sd","ndvi_sd",
+                       "rcc", "gcc", "bcc","ndvi", "bai")
+
+sep_stats <- map_dfr(bands_of_interest, calculate_separability)
 
 # Plot separability
 plot_separability <- function(band="Red"){
@@ -146,18 +130,26 @@ plot_separability <- function(band="Red"){
   return(p)
 }
 
-plot_list <- map(c("Red", "Green", "Blue", "rcc", "gcc", "bcc","ndvi", "bai"),
-                    plot_separability)
+plot_list <- map(bands_of_interest,plot_separability)
+
+# dynamically adjust grid layout
+n <- length(plot_list)
+nr <- ifelse(n / 2 > 4,3,2)
+nc <- ifelse(ceiling(n%%nr) == 0, n / nr, ceiling(n / nr))
 
 plot_grid(plotlist = plot_list, 
-          nrow = 2,
-          labels = paste0(letters[1:8], ")")) %>%
+          nrow = nr,
+          labels = paste0(letters[1:n], ")")) %>%
   save_plot("figures/band_separability.png",
             .,
-            nrow = 2,
-            ncol = 4,
+            nrow = nr,
+            ncol = nc,
             base_asp = 1.2,
             bg = "white")
+
+# Get top 5 bands based on TD separabilities 
+top_rows <- rownames(sep_stats)[order(-sep_stats$TD)[1:5]]
+cat("Top 5 Row Names with Highest TD Values:\n", top_rows, "\n")
 
 # Split into training and validation
 training_sample$id <- 1:nrow(training_sample)
@@ -168,7 +160,7 @@ validation <- filter(training_sample, !(id %in% training$id))
 
 
 # Train random forest model
-rf_fit <- randomForest(Burned ~ Red + Green + Blue + rcc + bcc + gcc + ndvi + bai,
+rf_fit <- randomForest(formula(paste('Burned ~',paste(top_rows,collapse = "+"))),
                        data = select(training, -id))
 
 # Test accuracy on validation split
@@ -182,7 +174,6 @@ confusionMatrix(data = test_preds, validation$Burned) %>%
   capture.output() %>%
   writeLines(file_connection)
 close(file_connection)
-
 
 # Prepare raster indices
 get_CC <- function(img, band) {
@@ -209,6 +200,7 @@ compute_image <- function(band){
 # Predict entire image
 image_list <- map(c("rcc","gcc","bcc", "ndvi","bai"),compute_image)
 predictors <- c(rast_refl,
+                rast_focal,
                 image_list[[1]], image_list[[2]], image_list[[3]], 
                 image_list[[4]],image_list[[5]])
 
@@ -217,6 +209,6 @@ preds <- terra::predict(predictors, rf_fit)
 cat("Writing raster...\n")
 writeRaster(preds,
             filename = paste0("data/geodata/raster/burned_area/planet/",
-                              "berelech_preds_withBAI.tif"),
+                              "berelech_preds_top5_TD.tif"),
             overwrite = T
 )
