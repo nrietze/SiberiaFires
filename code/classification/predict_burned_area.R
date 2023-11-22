@@ -61,26 +61,30 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   # Extract raster data
   raster_vals <- terra::extract(rast_refl, sel_features)[,c(1,sel_bands+1)]
   
-  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','rcc','bcc','bai','ndvi')]
+  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','rcc_sd','bcc_sd','bai_sd','ndvi_sd')]
   
   # Change column_names
   # names(raster_focal_vals)[-1] <- paste0(names(raster_focal_vals)[-1], "_sd")
   
   # Combine raster value tables
   raster_vals_all <- cbind(raster_vals, 
-                           select(raster_focal_vals, -ID))
+                           select(raster_focal_vals,-ID) ) 
   
   training_data <- sel_features %>%
     as.data.frame() %>%
     select(ID, Burned) %>%
     full_join(raster_vals_all) 
   
+  return(training_data)
+  
 }
+
+training_data <- get_raster_values(raster_files[1], training_polygons, sel_bands)
 
 training_sample <- training_data %>%
   group_by(ID,Burned) %>%
   na.omit() %>%
-  sample_n(10)
+  sample_n(50)
 
 training_sample %>% group_by(ID, Burned) %>% tally()
 
@@ -158,7 +162,6 @@ training <- training_sample %>%
   slice_sample(prop = 0.8)
 validation <- filter(training_sample, !(id %in% training$id)) 
 
-
 # Train random forest model
 rf_fit <- randomForest(formula(paste('Burned ~',paste(top_rows,collapse = "+"))),
                        data = select(training, -id))
@@ -209,6 +212,6 @@ preds <- terra::predict(predictors, rf_fit)
 cat("Writing raster...\n")
 writeRaster(preds,
             filename = paste0("data/geodata/raster/burned_area/planet/",
-                              "berelech_preds_top5_TD.tif"),
+                              "berelech_preds_newpolygons.tif"),
             overwrite = T
 )
