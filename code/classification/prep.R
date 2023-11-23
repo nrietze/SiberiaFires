@@ -2,60 +2,116 @@
 # Nils Rietze nils.rietze@uzh.ch 16 November 2023
 
 library(terra)
+library(tidyterra)
 library(tidyverse)
 library(sf)
 library(parallel)
 library(pbapply)
 library(geostats)
+library(jsonlite)
+
+# define processing year
+year <- 2020
 
 # Load list of raster files
-raster_path <- 'C:/data/8_planet/2020/original/'
+raster_path <- paste0('C:/data/8_planet/',year,'/original')
 
-raster_files_20 <- list.files(raster_path,
-                               pattern = '*composite.tif$',
-                               full.names = T
+raster_files <- list.files(raster_path,
+                           recursive = T,
+                           pattern = '^composite.tif$',
+                           full.names = T
 )
 
 # Load areas of interest
-aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
+aois <- vect('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
+  project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
 # Function to crop satellite imagery from AOIs
-crop_rasters <- function(fn_raster, features, path_out){
-  cat("\nProcessing", fn_raster, "\n")
+crop_rasters <- function(feature_idx,features, fns_raster){
+  feature <- features[feature_idx]
+  
+  cat("\nProcessing", feature$site, "\n")
+  
+  # Function to find the raster using the largest intersection area
+  find_raster <- function(fns_raster, feature){
+    intersect_areas <- lapply(raster_files, feature = feature, FUN = function(fn_raster, feature){
+      
+      # Load raster metadata files & geometries from json
+      dir_path <- dirname(fn_raster)
+      metadata <- vect(paste0(dir_path, '/composite_metadata.json') ) %>% 
+        project('EPSG:32655')
+      
+      # find which aois intersect with the raster and extract intersection area
+      intersection <- terra::intersect(feature, ext(metadata))
+      area <- expanse(intersection)
+    })
+    
+    # Check if there is any raster covering this AOI by looking for an intersect area
+    any_non_empty_numeric <- any(sapply(intersect_areas, function(x) is.numeric(x) && length(x) > 0))
+    
+    # Report the filename of that raster
+    if (any_non_empty_numeric) {
+      idx <- which.max(intersect_areas)
+      
+      fn_raster_ok <- fns_raster[idx]
+      
+      return(fn_raster_ok)
+    } else {
+      return(NULL)
+    }
+    
+  } 
+  
+  # Get raster covering this AOI
+  fn_raster_ok <- find_raster(fns_raster,feature)
+  
+  cat(fn_raster_ok)
+  
+  # Break the function and return nothing if there is no raster for this AOI
+  if (is.null(fn_raster_ok)) {
+    cat("No raster covering this AOI was found.")
+    return(NULL)
+    stop()
+  }
+  
+  dir_path <- dirname(fn_raster_ok)
+  metadata <- vect(paste0(dir_path, '/composite_metadata.json') )
+  instrument <- metadata$instrument
+  
+  # define band names per instrument
+  if (instrument == 'PSB.SD'){
+    band_names <- c('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR')
+  } else {
+    band_names <- c('Blue','Green','Red','NIR')
+  }
   
   # Load raster data
-  rast_refl <- rast(fn_raster)
-  rast_udm <- rast(gsub("(.*)(\\.tif)", "\\1_udm2\\2", fn_raster))
+  rast_refl <- rast(fn_raster_ok)
+  rast_udm <- rast(gsub("(.*)(\\.tif)", "\\1_udm2\\2", fn_raster_ok))
 
   # mask reflectance with usable data mask provided by Planet
-  rast_ok <- mask(rast_refl,rast_udm[[1]])
-  
-  # Check which aoi is covered in this raster
-  features_utm <- vect(features) %>% 
-    project('EPSG:32655')
-  
-  # find which aois intersect with the raster and extract intersection area
-  intersection <- terra::intersect(features_utm, ext(rast_ok))
-  intersect_areas <- expanse(intersection)
-  
-  # select the larger intersection area to use as crop extent
-  aoi <- features[intersection[which.max(intersect_areas),]$id,] %>% 
-    vect() %>% 
-    project('EPSG:32655')
+  rast_ok <- mask(rast_refl,rast_udm[[1]],maskvalue = 0)
   
   # crop raster to aoi
-  out_raster <- terra::crop(rast_ok, aoi,mask = TRUE)
+  out_raster <- terra::crop(rast_ok, feature,mask = TRUE)
   
   # rename new file
-  new_fn_raster <- gsub("(.*\\/\\d{4}-\\d{2}-\\d{2}_)(.*)(_composite\\.tif)", 
-                        paste0("\\1", aoi$site, "\\3"), fn_raster)
-  new_fn_raster <- gsub("(.*\\/\\d{4})(\\/original\\/)(.*)", "\\1/cropped/\\3", new_fn_raster)
+  new_dir_raster <- gsub("original", "cropped", sub("/\\d+$", "", dirname(fn_raster_ok)))
+  new_fn_raster <- paste0(new_dir_raster,'/',feature$site,'_',year,'_composite.tif')
+  new_fn_json <- paste0(new_dir_raster,'/',feature$site,'_',year,'_composite_metadata.json')
   
   # write cropped image to raster
-  writeRaster(out_raster,new_fn_raster, 
+  writeRaster(out_raster,
+              new_fn_raster, 
               gdal=c("COMPRESS=NONE", "TFW=YES"),
-              names = c('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'),
+              names = band_names,
+              overwrite = TRUE)
+  
+  # write metadata to json
+  writeVector(metadata, 
+              new_fn_json,
+              filetype = 'geojson',
               overwrite = TRUE)
   
   return(NULL)
@@ -70,8 +126,9 @@ clusterExport(cl, c("crop_rasters"),
 
 # Crop images
 pblapply(
-  raster_files_20,
+  1:nrow(aois),
   features = aois,
+  fns_raster = raster_files,
   FUN = crop_rasters,
   cl = 7)
 
@@ -130,9 +187,9 @@ compute_focal_raster <- function(fn_raster,band,window,f_stat){
   return(NULL)
 }
 
-raster_path_cropped <- 'C:/data/8_planet/2020/cropped/'
+raster_path_cropped <- sprintf('C:/data/8_planet/%s/cropped/',year)
 raster_files_cropped <- list.files(raster_path_cropped,
-                              pattern = '*composite.tif$',
+                              pattern = sprintf('*%s_composite.tif$',year),
                               full.names = T
 )
 

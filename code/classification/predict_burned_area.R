@@ -23,18 +23,20 @@ aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
   mutate(., id = 1:nrow(.))
 
 # Load training polygons
-training_polygons <- read_sf('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') 
+training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') %>% 
+  project('EPSG:32655')
 
 # Load list of raster files
-raster_path <- 'C:/data/8_planet/2020/cropped/'
+year <- 2020
+raster_path <- sprintf('C:/data/8_planet/%s/cropped/',year)
 
 raster_files <- list.files(raster_path,
-                           pattern = '*.tif$',
+                           pattern = sprintf('*%s_composite.tif$',year),
                            full.names = T
 )
 
-# Bands to extract (SuperDove = ('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'))
-sel_bands <- c(2,4,6,8) # B, G, R, NIR
+# Define bands to extract (SuperDove = ('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'))
+sel_bands <- c('Blue','Green','Red','NIR')
 
 # Function to extract raster values within training polygons
 get_raster_values <- function(fn_raster, features, sel_bands){
@@ -52,14 +54,12 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   
   # Select training polygons within this raster
   sel_features <- features %>% 
-    vect() %>% 
-    project('EPSG:32655') %>% 
     terra::intersect(ext(rast_refl)) %>% 
     mutate(.,ID = 1:nrow(.)) %>% 
     mutate(.,Burned = factor(Burned,labels = c('unburned','burned')))
   
   # Extract raster data
-  raster_vals <- terra::extract(rast_refl, sel_features)[,c(1,sel_bands+1)]
+  raster_vals <- terra::extract(rast_refl, sel_features)[,c('ID',sel_bands)]
   
   raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','rcc_sd','bcc_sd','bai_sd','ndvi_sd')]
   
@@ -79,7 +79,14 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   
 }
 
-training_data <- get_raster_values(raster_files[1], training_polygons, sel_bands)
+# Extract raster values in polygons
+fn_raster <- raster_files[1]
+training_data <- get_raster_values(fn_raster, training_polygons, sel_bands)
+
+site <- sub("^(.*?)_.*$", "\\1", basename(fn_raster))
+
+npoly <- nrow(training_polygons)
+print(training_data %>% group_by(ID, Burned) %>% tally(), n = npoly)
 
 training_sample <- training_data %>%
   group_by(ID,Burned) %>%
@@ -144,7 +151,7 @@ nc <- ifelse(ceiling(n%%nr) == 0, n / nr, ceiling(n / nr))
 plot_grid(plotlist = plot_list, 
           nrow = nr,
           labels = paste0(letters[1:n], ")")) %>%
-  save_plot("figures/band_separability.png",
+  save_plot(paste0("figures/band_separability_",site,"_",year,".png"),
             .,
             nrow = nr,
             ncol = nc,
