@@ -43,7 +43,7 @@ if (terrain_bg == TRUE){
   )
 } else {
   # load handdrawn extent as ext_draw
-  load('C:/Users/nrietze/Documents/1_PhD/8_CHAPTER2/data/geodata/feature_layers/animation_extent.rda')
+  load('C:/Users/nrietze/Documents/1_PhD/8_CHAPTER2/SiberiaFires/data/geodata/feature_layers/animation_extent.rda')
   
   ext <- st_bbox(c(xmin = xmin, 
                    ymin = ymin,
@@ -55,7 +55,7 @@ if (terrain_bg == TRUE){
   #   st_transform(crs = 3857) %>%
   #   st_bbox()
   
-  map <- basemap_ggplot(ext, map_service = "esri", map_type = "world_imagery")
+  map <- basemap_ggplot(ext_draw, map_service = "esri", map_type = "world_imagery",map_res = .2)
 }
 
 plot_list <- list()

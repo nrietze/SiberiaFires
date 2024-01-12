@@ -1,4 +1,4 @@
-# Script to classify Planet VNIR imagery to burned area maps
+# Script to classify Planet VNIR imagery to water mask
 # Nils Rietze nils.rietze@uzh.ch 16 November 2023
 
 library(terra)
@@ -8,8 +8,11 @@ library(sf)
 library(spatialEco)
 library(caret)
 library(randomForest)
+library(ggplot2)
+library(purrr)
 library(cowplot)
 library(scico)
+library(dplyr)
 library(parallel)
 library(pbapply)
 
@@ -61,12 +64,12 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   sel_features <- features %>% 
     terra::intersect(ext(rast_refl)) %>% 
     mutate(.,ID = 1:nrow(.)) %>% 
-    mutate(.,Burned = factor(Burned,labels = c('unburned','burned')))
+    mutate(iswater = factor(if_else(is.na(LandCover), 'no_water','water'),labels = c('no_water','water') ) ) 
   
   # Extract raster data
   raster_vals <- terra::extract(rast_refl, sel_features)[,c('ID',sel_bands)]
   
-  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','gcc_sd','rcc_sd','bcc_sd','bai_sd','ndvi_sd')]
+  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','gcc_sd','rcc_sd','bcc_sd','ndwi_sd','ndvi_sd')]
   
   # Change column_names
   # names(raster_focal_vals)[-1] <- paste0(names(raster_focal_vals)[-1], "_sd")
@@ -78,13 +81,13 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   # Join labels and raster values
   training_data <- sel_features %>%
     as.data.frame() %>%
-    select(ID, Burned) %>%
+    select(ID, iswater) %>%
     full_join(raster_vals_all) 
   
   # compute chromatic coordinates
   training_data <- training_data %>%
     mutate(ndvi = (Red - NIR) / (Red + NIR),
-           bai = 1 / ( (0.1 - Red)^2 + (0.06 - NIR)^2 ),
+           ndwi = (Green - NIR) / (Green + NIR),
            rcc = Red / (Red + Blue + Green),
            bcc = Blue / (Red + Blue + Green),
            gcc = Green / (Red + Blue + Green),
@@ -98,7 +101,7 @@ get_raster_values <- function(fn_raster, features, sel_bands){
 # Raster value extraction ----
 
 # Extract raster values in polygons
-regex_name <- 'Center'
+regex_name <- 'Kosukhino'
 fn_raster_pre <- raster_files_pre[grepl(regex_name,raster_files_pre)]
 fn_raster_post <- raster_files_post[grepl(regex_name,raster_files_post) & 
                                     grepl('PS2',raster_files_post)]
@@ -107,7 +110,7 @@ training_data_pre <- get_raster_values(fn_raster_pre, training_polygons, sel_ban
 training_data_post <- get_raster_values(fn_raster_post, training_polygons, sel_bands)
 
 # Compute differences in normalized bands & indices and add to post-fire data
-cols_to_diff <- c("ndvi", "bai", "rcc", "bcc", "gcc")
+cols_to_diff <- c("ndvi", "ndwi", "rcc", "bcc", "gcc")
 
 training_data <- training_data_post %>%
   mutate(across(all_of(cols_to_diff), ~ . - training_data_pre[[cur_column()]], .names = "D{.col}"))
@@ -116,28 +119,28 @@ training_data <- training_data_post %>%
 site <- unlist(strsplit( basename(fn_raster_post),'_')) [2]
 
 npoly <- nrow(training_polygons)
-print(training_data %>% group_by(ID, Burned) %>% tally(), n = npoly)
+print(training_data %>% group_by(ID, iswater) %>% tally(), n = npoly)
 
 training_sample <- training_data %>%
-  group_by(ID,Burned) %>%
+  group_by(ID,iswater) %>%
   na.omit() %>%
   sample_n(50,replace = TRUE)
 
-training_sample %>% group_by(ID, Burned) %>% tally()
+training_sample %>% group_by(ID, iswater) %>% tally()
 
 # Calculate separability
 calculate_separability <- function(variable_name) {
     separability(
-      filter(training_sample, Burned == 'unburned') %>% ungroup() %>% select(!!variable_name ),
-      filter(training_sample, Burned == 'burned') %>% ungroup() %>% select(!!variable_name )
+      filter(training_sample, iswater == 'uniswater') %>% ungroup() %>% select(!!variable_name ),
+      filter(training_sample, iswater == 'iswater') %>% ungroup() %>% select(!!variable_name )
     ) %>%
       select(-!!variable_name , -!!paste0(variable_name,".1"))
 }
 
 bands_of_interest <- c("Red", "Green", "Blue","NIR",
-                       "gcc_sd","rcc_sd","bcc_sd","bai_sd","ndvi_sd",
-                       "rcc", "gcc", "bcc","ndvi", "bai",
-                       "Dndvi","Dbai","Drcc","Dbcc","Dgcc" )
+                       "gcc_sd","rcc_sd","bcc_sd","ndwi_sd","ndvi_sd",
+                       "rcc", "gcc", "bcc","ndvi", "ndwi",
+                       "Dndvi","Dndwi","Drcc","Dbcc","Dgcc" )
 
 sep_stats <- map_dfr(bands_of_interest, calculate_separability)
 
@@ -147,16 +150,16 @@ plot_separability <- function(band="Red"){
   y_pos <- max(training_sample$band_to_plot) * .9
   
   p <- ggplot(training_sample) +
-    geom_violin(aes(x = Burned,
+    geom_violin(aes(x = iswater,
                     y = band_to_plot, 
-                    fill = Burned)) +
+                    fill = iswater)) +
     geom_text(data = sep_stats[band,], 
               aes(x = 2, y = y_pos, 
                   label = paste("TD =", 
                                 formatC(TD, format = "f", digits = 2)),
                   hjust = 0,
                   fontface = "bold")) +
-    labs(x = 'Burned class',y = band) +
+    labs(x = 'iswater class',y = band) +
     theme_cowplot() +
     theme(legend.position = "none",
           strip.background = element_rect(fill = "white"))
@@ -173,13 +176,13 @@ nc <- ifelse(ceiling(n%%nr) == 0, n / nr, ceiling(n / nr))
 
 plot_grid(plotlist = plot_list, 
           nrow = nr,
-          labels = paste0(letters[1:n], ")")) %>%
-  save_plot(paste0("figures/band_separability_",site,"_",year,".png"),
-            .,
-            nrow = nr,
-            ncol = nc,
-            base_asp = 1.2,
-            bg = "white")
+          labels = paste0(letters[1:n], ")")) 
+  # save_plot(paste0("figures/band_separability_",site,"_",year,".png"),
+  #           .,
+  #           nrow = nr,
+  #           ncol = nc,
+  #           base_asp = 1.2,
+  #           bg = "white")
 
 # Get top 5 bands based on TD separability 
 top_rows <- rownames(sep_stats)[order(-sep_stats$TD)[1:5]]
@@ -188,12 +191,12 @@ cat("Top 5 Row Names with Highest TD Values:\n", top_rows, "\n")
 # Split into training and validation
 training_sample$id <- 1:nrow(training_sample)
 training <- training_sample %>%
-  group_by(Burned) %>%
+  group_by(iswater) %>%
   slice_sample(prop = 0.8)
 validation <- filter(training_sample, !(id %in% training$id)) 
 
 # Train random forest model on all variables
-rf_fit <- randomForest(formula(paste('Burned ~',paste(bands_of_interest,collapse = "+"))),
+rf_fit <- randomForest(formula(paste('iswater ~',paste(bands_of_interest,collapse = "+"))),
                        data = select(training, -id))
 top_5_gini <- varImp(rf_fit, scale = FALSE) %>% 
   top_n(5, Overall) %>%
@@ -201,7 +204,7 @@ top_5_gini <- varImp(rf_fit, scale = FALSE) %>%
 # top_rows <- top_5_gini
 
 # Train random forest model on top 5 
-rf_fit <- randomForest(formula(paste('Burned ~',paste(top_rows,collapse = "+"))),
+rf_fit <- randomForest(formula(paste('iswater ~',paste(top_rows,collapse = "+"))),
                        data = select(training, -id))
 
 # Test accuracy on validation split
@@ -209,11 +212,11 @@ test_preds <- predict(rf_fit, newdata = validation,
                       type = "response")
 
 # Export confusion matrix
-fn_conf_matrix <- paste0("tables/rf_confusion_matrix_",site,"_",year,".txt")
+fn_conf_matrix <- paste0("tables/rf_confusion_matrix_water_",site,"_",year,".txt")
 
 file_connection <- file(fn_conf_matrix)
 
-confusionMatrix(data = test_preds, validation$Burned) %>%
+confusionMatrix(data = test_preds, validation$iswater) %>%
   print() %>%
   capture.output() %>%
   writeLines(file_connection)
@@ -235,8 +238,8 @@ compute_image <- function(fn_raster,band){
     r <- get_CC(img,band)
   } else if(band == "ndvi"){
     r <- (img[["Red"]] - img[["NIR"]]) / (img[["Red"]] + img[["NIR"]])
-  } else if(band == "bai"){
-    r <- 1 / ( (0.1 - img[["Red"]])^2 + (0.06 - img[["NIR"]])^2 )
+  } else if(band == "ndwi"){
+    r <- (img[["Green"]] - img[["NIR"]]) / (img[["Green"]] + img[["NIR"]])
   }
   names(r) <- band
   
@@ -245,9 +248,9 @@ compute_image <- function(fn_raster,band){
  
 # Load predictors
 vnir_bands <- c("Red","Green","Blue","NIR")
-band_indices <- c("bai","ndvi","rcc","bcc","gcc")
-band_diffs <- c("Dndvi","Dbai","Drcc","Dbcc","Dgcc")
-focal_indices <- c("Blue_sd","Green_sd","Red_sd","rcc_sd","gcc_sd","bcc_sd","bai_sd","ndvi_sd")
+band_indices <- c("ndwi","ndvi","rcc","bcc","gcc")
+band_diffs <- c("Dndvi","Dndwi","Drcc","Dbcc","Dgcc")
+focal_indices <- c("Blue_sd","Green_sd","Red_sd","rcc_sd","gcc_sd","bcc_sd","ndwi_sd","ndvi_sd")
 
 if (any(vnir_bands %in% top_rows) ) {
   bands <- intersect(vnir_bands,top_rows)
@@ -305,14 +308,14 @@ cat("Predicting raster...\n")
 preds <- terra::predict(predictors, rf_fit)
 cat("Writing raster...\n")
 writeRaster(preds,
-            filename = paste0("data/geodata/raster/burned_area/planet/",
-                              site,"_",year,"_burned_area.tif"),
+            filename = paste0("data/geodata/raster/water_area/planet/",
+                              site,"_",year,"_water_area.tif"),
             overwrite = T
 )
 
 # Export predictors as raster
 writeRaster(predictors,
-            filename = paste0("data/geodata/raster/burned_area/planet/",
+            filename = paste0("data/geodata/raster/water_area/planet/",
                               site,"_",year,"_predictors.tif"),
             overwrite = T
 )

@@ -66,8 +66,6 @@ crop_rasters <- function(feature_idx,features, fns_raster){
   # Get raster covering this AOI
   fn_raster_ok <- find_raster(fns_raster,feature)
   
-  cat(fn_raster_ok)
-  
   # Break the function and return nothing if there is no raster for this AOI
   if (is.null(fn_raster_ok)) {
     cat("No raster covering this AOI was found.")
@@ -77,10 +75,10 @@ crop_rasters <- function(feature_idx,features, fns_raster){
   
   dir_path <- dirname(fn_raster_ok)
   metadata <- vect(paste0(dir_path, '/composite_metadata.json') )
-  instrument <- metadata$instrument
+  instrument <- gsub("\\.","-",metadata$instrument)
   
   # define band names per instrument
-  if (instrument == 'PSB.SD'){
+  if (instrument == 'PSB-SD'){
     band_names <- c('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR')
   } else {
     band_names <- c('Blue','Green','Red','NIR')
@@ -97,21 +95,15 @@ crop_rasters <- function(feature_idx,features, fns_raster){
   out_raster <- terra::crop(rast_ok, feature,mask = TRUE)
   
   # rename new file
-  new_dir_raster <- gsub("original", "cropped", sub("/\\d+$", "", dirname(fn_raster_ok)))
-  new_fn_raster <- paste0(new_dir_raster,'/',feature$site,'_',year,'_composite.tif')
-  new_fn_json <- paste0(new_dir_raster,'/',feature$site,'_',year,'_composite_metadata.json')
+  new_dir_raster <- gsub("original", "cropped", dirname(fn_raster_ok))
+  new_fn_raster <- paste0(new_dir_raster,'_',feature$site,'_',instrument,'_composite.tif')
+  cat(new_fn_raster)
   
   # write cropped image to raster
   writeRaster(out_raster,
               new_fn_raster, 
               gdal=c("COMPRESS=NONE", "TFW=YES"),
               names = band_names,
-              overwrite = TRUE)
-  
-  # write metadata to json
-  writeVector(metadata, 
-              new_fn_json,
-              filetype = 'geojson',
               overwrite = TRUE)
   
   return(NULL)
@@ -160,6 +152,8 @@ compute_focal_raster <- function(fn_raster,band,window,f_stat){
       r <- get_CC(rast_refl,band)
     } else if(band == "ndvi"){
       r <- (rast_refl[["Red"]] - rast_refl[["NIR"]]) / (rast_refl[["Red"]] + rast_refl[["NIR"]])
+    } else if(band == "ndwi"){
+      r <- (rast_refl[["Green"]] - rast_refl[["NIR"]]) / (rast_refl[["Green"]] + rast_refl[["NIR"]])
     } else if(band == "bai"){
       r <- 1 / ( (0.1 - rast_refl[["Red"]])^2 + (0.06 - rast_refl[["NIR"]])^2 )
     }
@@ -169,7 +163,7 @@ compute_focal_raster <- function(fn_raster,band,window,f_stat){
   }
   
   # Compute band indices
-  image_list <- map(c("rcc","gcc","bcc", "ndvi","bai"),compute_image)
+  image_list <- map(c("rcc","gcc","bcc", "ndvi","ndwi","bai"),compute_image)
   
   # add band indices to multiband raster
   rsrc <- rast(image_list)
@@ -189,7 +183,7 @@ compute_focal_raster <- function(fn_raster,band,window,f_stat){
 
 raster_path_cropped <- sprintf('C:/data/8_planet/%s/cropped/',year)
 raster_files_cropped <- list.files(raster_path_cropped,
-                              pattern = sprintf('*%s_composite.tif$',year),
+                              pattern = sprintf('*_composite.tif$'),
                               full.names = T
 )
 
