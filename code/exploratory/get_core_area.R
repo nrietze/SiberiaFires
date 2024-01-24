@@ -30,7 +30,8 @@ ba_perc_rast <- lsp_add_terra(ba_perc2)
 
 ggplot() +
   geom_spatraster(data=ba_perc_rast['X2']) +
-  scale_fill_scico(palette = 'buda')
+  scale_fill_scico(palette = 'buda') +
+  theme_cowplot()
 
 writeRaster(ba_perc_rast,
             filename = "data/geodata/raster/burned_area/planet/AOI_2_burn_pct.tif",
