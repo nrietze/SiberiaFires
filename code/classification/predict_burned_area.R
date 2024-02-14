@@ -316,3 +316,9 @@ writeRaster(predictors,
                               site,"_",year,"_predictors.tif"),
             overwrite = T
 )
+
+
+# Generate burn perimeter ----
+## Vectorize raster ----
+
+ba_poly <- terra::as.polygons(ifel(preds=='burned',1,0))
