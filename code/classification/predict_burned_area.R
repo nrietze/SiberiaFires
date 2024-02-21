@@ -98,7 +98,7 @@ get_raster_values <- function(fn_raster, features, sel_bands){
 # Raster value extraction ----
 
 # Extract raster values in polygons
-regex_name <- 'Kosukhino'
+regex_name <- 'Berelech'
 fn_raster_pre <- raster_files_pre[grepl(regex_name,raster_files_pre)]
 fn_raster_post <- raster_files_post[grepl(regex_name,raster_files_post) & 
                                     grepl('PS2',raster_files_post)]
@@ -171,10 +171,10 @@ n <- length(plot_list)
 nr <- ifelse(n / 2 > 4,3,2)
 nc <- ifelse(ceiling(n%%nr) == 0, n / nr, ceiling(n / nr))
 
-plot_grid(plotlist = plot_list, 
+cowplot::plot_grid(plotlist = plot_list, 
           nrow = nr,
           labels = paste0(letters[1:n], ")")) %>%
-  save_plot(paste0("figures/band_separability_",site,"_",year,".png"),
+  cowplot::save_plot(paste0("figures/band_separability_",site,".png"),
             .,
             nrow = nr,
             ncol = nc,
@@ -198,7 +198,7 @@ rf_fit <- randomForest(formula(paste('Burned ~',paste(bands_of_interest,collapse
 top_5_gini <- varImp(rf_fit, scale = FALSE) %>% 
   top_n(5, Overall) %>%
   rownames()
-# top_rows <- top_5_gini
+top_rows <- top_5_gini
 
 # Train random forest model on top 5 
 rf_fit <- randomForest(formula(paste('Burned ~',paste(top_rows,collapse = "+"))),
@@ -209,7 +209,7 @@ test_preds <- predict(rf_fit, newdata = validation,
                       type = "response")
 
 # Export confusion matrix
-fn_conf_matrix <- paste0("tables/rf_confusion_matrix_",site,"_",year,".txt")
+fn_conf_matrix <- paste0("tables/rf_confusion_matrix_",site,"_top5gini.txt")
 
 file_connection <- file(fn_conf_matrix)
 
@@ -306,14 +306,14 @@ preds <- terra::predict(predictors, rf_fit)
 cat("Writing raster...\n")
 writeRaster(preds,
             filename = paste0("data/geodata/raster/burned_area/planet/",
-                              site,"_",year,"_burned_area.tif"),
+                              site,"_burned_area_top5gini.tif"),
             overwrite = T
 )
 
 # Export predictors as raster
 writeRaster(predictors,
             filename = paste0("data/geodata/raster/burned_area/planet/",
-                              site,"_",year,"_predictors.tif"),
+                              site,"_predictors_top5gini.tif"),
             overwrite = T
 )
 

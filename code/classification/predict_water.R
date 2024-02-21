@@ -101,7 +101,7 @@ get_raster_values <- function(fn_raster, features, sel_bands){
 # Raster value extraction ----
 
 # Extract raster values in polygons
-regex_name <- 'Kosukhino'
+regex_name <- 'Berelech'
 fn_raster_pre <- raster_files_pre[grepl(regex_name,raster_files_pre)]
 fn_raster_post <- raster_files_post[grepl(regex_name,raster_files_post) & 
                                     grepl('PS2',raster_files_post)]

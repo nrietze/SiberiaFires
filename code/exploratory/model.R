@@ -110,38 +110,47 @@ if (window_side_length != 30){
 }
 
 ## NDVI ----
+
+# Landsat
 scale_factor <- 2.75e-05 	
 offset <- -0.2
-
-# Level 2
-# Landsat
-red <- rast(paste0(ls_path,'LC08_L2SP_115010_20200608_20200824_02_T1_SR_B4.TIF')) %>% 
-  crop(aoi2) 
-nir <- rast(paste0(ls_path,'LC08_L2SP_115010_20200608_20200824_02_T1_SR_B5.TIF')) %>% 
-  crop(aoi2) 
-
-# Planet
-planet_path <- 'C:/data/8_planet/2019/cropped/'
-planet_msp <- rast(paste0(planet_path,'20190621_Kosukhino_PS2-SD_composite.tif')) %>% 
-  crop(aoi2) 
-
-red <- planet_msp$Red
-nir <- planet_msp$NIR
 
 # Level 1
 # b4 <- rast(paste0(ls_path,'LC08_L1TP_115010_20200608_20200824_02_T1_B4.TIF')) 
 # b5 <- rast(paste0(ls_path,'LC08_L1TP_115010_20200608_20200824_02_T1_B5.TIF')) 
 
+# Level 2
+red <- rast(paste0(ls_path,'LC08_L2SP_115010_20200608_20200824_02_T1_SR_B4.TIF')) %>% 
+  crop(aoi2) 
+nir <- rast(paste0(ls_path,'LC08_L2SP_115010_20200608_20200824_02_T1_SR_B5.TIF')) %>% 
+  crop(aoi2) 
+
 ndvi <- ((nir - red) / (nir + red)) 
 names(ndvi) <- 'NDVI'
 
 if (window_side_length != res(ndvi)[1]){
+  ndvi <-  resample(ndvi,raster_grid_template,'bilinear')
+}
+
+# Planet
+planet_path <- 'C:/data/8_planet/2019/cropped/20190621_Kosukhino_PS2-SD_composite.tif'
+# planet_path <- 'C:/data/8_planet/2020/cropped/20200615_Kosukhino_PS2-SD_composite.tif'
+
+planet_msp <- rast(planet_path) %>% 
+  crop(aoi2) 
+
+get_ndvi_heterogeneity <- function(red, nir){
+  ndvi <- ((nir - red) / (nir + red)) 
+  
   # Compute patchiness metric before resampling
   ndvi_sd <- terra::aggregate(ndvi, fact = 10,fun = 'sd') %>% 
     resample(.,raster_grid_template,'bilinear')
   names(ndvi_sd) <- 'NDVI_sd'
-  ndvi <-  resample(ndvi,raster_grid_template,'bilinear')
+  
+  return(ndvi_sd)
 }
+
+ndvi_sd <- get_ndvi_heterogeneity(planet_msp$Red,planet_msp$NIR)
 
 # GLCM of spectral bands
 # glcm_stats <- c("variance", "homogeneity","entropy")
@@ -161,9 +170,9 @@ wa_path <- 'data/geodata/raster/water_area/planet/Kosukhino_2020_water_area.tif'
 wa <- rast(wa_path) %>% resample(raster_grid_template,'mode')
 
 ## gather all predictors and mask water areas ----
-predictors <- c(dem,slope, aspect,northness,eastness, tpi_500,
-                lst,ndvi,ndvi_sd) %>% scale()
-predictors <- c(predictors,fraction_burned) %>% 
+predictors_unscaled <- c(dem,slope, aspect,northness,eastness, tpi_500,
+                         lst,ndvi,ndvi_sd) 
+predictors <- c(scale(predictors),fraction_burned) %>% 
   mask(wa,maskvalue = 2, updatevalue = NA)
 
 # Build model ----
@@ -204,7 +213,7 @@ zoi_beta_model <- brm(
   family = zero_one_inflated_beta(),
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234,
-  file = "zoi_beta_model_planetNDVI"
+  file = paste0("zoi_beta_model_",today())
 )
 
 summary(zoi_beta_model)
@@ -259,7 +268,7 @@ plot <- ggplot(data = dat_for_plot, aes(y = label, x = .value, fill = after_stat
         legend.position = "none") +
   labs(x = "Posterior estimates", y = ""); plot
 
-ggsave(plot,filename = 'figures/model/zoib_model_aoi2.png',bg = 'white')
+ggsave(plot,filename = sprintf('figures/model/zoib_model_aoi2_%s.png',today()),bg = 'white')
 
 # Predict burn fraction in entire map
 preds_zoib <- predict(zoi_beta_model,predictors)
@@ -408,7 +417,7 @@ create_ggplot <- function(layer, parameters) {
 }
 
 ggplots <- lapply(mod_vars, function(layer) {
-  create_ggplot(predictors[[layer]], parameters)
+  create_ggplot(predictors_unscaled[[layer]], parameters)
 })
 
 pred_plots <- cowplot::plot_grid(plotlist = ggplots, ncol = 3, 
