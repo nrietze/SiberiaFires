@@ -23,7 +23,7 @@ raster_files <- list.files(raster_path,
 )
 
 # Load areas of interest
-aois <- vect('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
+aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
@@ -151,7 +151,7 @@ compute_focal_raster <- function(fn_raster,band,window,f_stat){
     if(band %in% c("rcc", "gcc", "bcc")) {
       r <- get_CC(rast_refl,band)
     } else if(band == "ndvi"){
-      r <- (rast_refl[["Red"]] - rast_refl[["NIR"]]) / (rast_refl[["Red"]] + rast_refl[["NIR"]])
+      r <- (rast_refl[["NIR"]] - rast_refl[["Red"]]) / (rast_refl[["NIR"]] + rast_refl[["Red"]])
     } else if(band == "ndwi"){
       r <- (rast_refl[["Green"]] - rast_refl[["NIR"]]) / (rast_refl[["Green"]] + rast_refl[["NIR"]])
     } else if(band == "bai"){

@@ -13,7 +13,7 @@ fire_data <- read.csv(FNAME) %>%
   vect()
 
 # Load areas of interest
-aois <- vect('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
+aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   mutate(., id = 1:nrow(.))
 
 # Get fire points from 2020 that intersect with AOIs
@@ -32,21 +32,20 @@ ggplot(fires_aoi) +
   geom_segment( aes(x=site, xend=site, y=first_day, yend=last_day), color="grey") +
   geom_point(aes(x=site, y=ACQ_DATE) , colour=rgb(0.7,0.2,0.1,1), size=3 ) +
   scale_y_datetime(labels = date_format("%b %d"),
-                   limits = as.POSIXct(strptime(c("2020-06-10", "2020-07-30"), 
+                   limits = as.POSIXct(strptime(c("2020-06-10", "2020-08-01"), 
                                                 format = "%Y-%m-%d")),
                    breaks = date_breaks("1 week")) +
-  annotate("text", x = 2.2, y = first_day, label = first_day) + 
-  annotate("segment", x = 2.15, xend = 2, y = first_day+days(1), yend = first_day, colour = "black") +
-  annotate("text", x = 3.5, y = last_day, label = last_day) + 
-  annotate("segment", x = 3.55, xend = 4, y = last_day+days(1), yend = last_day, colour = "black") +
+  annotate("text", x = 2.4, y = first_day, label = first_day) + 
+  annotate("segment", x = 2.85, xend = 2.55, y = first_day, yend = first_day, colour = "black") +
+  annotate("text", x = 4.4, y = last_day - days(1), label = last_day) + 
+  annotate("segment", x = 4.85, xend = 4.55, y = last_day, yend = last_day, colour = "black") +
   coord_flip()+
   theme_cowplot() +
-  theme(
-    legend.position = "none",
-  ) +
+  theme(plot.margin = unit(c(.5,1,.5,.5), "cm"),
+        legend.position = "none") +
   xlab("") +
   ylab("Acquisition date")
 
-ggsave('./figures/fire_durations.png')
+ggsave('./figures/fire_durations.png',bg = 'white')
 
 

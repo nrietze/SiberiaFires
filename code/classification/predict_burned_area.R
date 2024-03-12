@@ -2,10 +2,10 @@
 # Nils Rietze nils.rietze@uzh.ch 16 November 2023
 
 library(terra)
-library(tidyverse)
-library(tidyterra)
 library(sf)
 library(spatialEco)
+library(tidyverse)
+library(tidyterra)
 library(caret)
 library(randomForest)
 library(cowplot)
@@ -23,21 +23,14 @@ predict_burn_raster <- TRUE
 use_top5_TD <- TRUE # if FALSE, the top 5 GINI predictors will be used
 
 # Should an individual AOI be processed or all?
-predict_all_aois <- FALSE
+predict_all_aois <- TRUE
 
 # Provide a part of the AOI name for processing
 if (predict_all_aois){
-  aoi_names <- c('Center','Control','Kosukhino','Berelech')
+  aoi_names <- c('LargeScarCenter','LargeScarControl','Kosukhino','Berelech','DrainedThawlake')
 } else {
-  aoi_names <- 'Center'
+  aoi_names <- 'LargeScarCenter'
 }
-
-# Define bands to extract (SuperDove = ('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'))
-sel_bands <- c('Blue','Green','Red','NIR')
-
-# Prepare config table
-config <- list(aoi_names,
-               sel_bands)
 
 # Plot figures generated during prediction?
 plot_results <- TRUE
@@ -49,12 +42,15 @@ save_plots <- TRUE
 # Load ... ----
 
 ##...areas of interest ----
-aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois.shp') %>%
+aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   mutate(., id = 1:nrow(.))
 
 ##... training polygons----
 training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') %>% 
   project('EPSG:32655')
+
+##... polygon_masks----
+poly_mask <- vect('data/geodata/feature_layers/planet_masks.shp')
 
 ##... list of raster files----
 pre_year <- 2019
@@ -72,7 +68,7 @@ raster_files_post <- list.files(sprintf('C:/data/8_planet/%s/cropped/',post_year
 # Set up functions ----
 
 # Function to extract raster values within training polygons
-get_raster_values <- function(fn_raster, features, sel_bands){
+get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
   cat("\nProcessing", fn_raster, "\n")
   
   window <- 5
@@ -81,8 +77,8 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   fn_raster_focal <- gsub("composite", paste0("focal_", window, "_", f_stat), fn_raster)
   
   # Load raster data
-  rast_refl <- rast(fn_raster)
-  rast_focal <- rast(fn_raster_focal)
+  rast_refl <- rast(fn_raster) %>% mask(.,poly_mask,inverse = T)
+  rast_focal <- rast(fn_raster_focal) %>% mask(.,poly_mask,inverse = T)
   names(rast_focal) <- paste0(names(rast_focal),'_sd')
   
   # Select training polygons within this raster
@@ -94,7 +90,14 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   # Extract raster data
   raster_vals <- terra::extract(rast_refl, sel_features)[,c('ID',sel_bands)]
   
-  raster_focal_vals <- terra::extract(rast_focal, sel_features)[,c('ID','gcc_sd','rcc_sd','bcc_sd','bai_sd','ndvi_sd')]
+  raster_focal_vals <- terra::extract(rast_focal, 
+                                      sel_features)[,c('ID',
+                                                       'gcc_sd',
+                                                       'rcc_sd',
+                                                       'bcc_sd',
+                                                       'bai_sd',
+                                                       'ndvi_sd',
+                                                       'ndwi_sd')]
   
   # Change column_names
   # names(raster_focal_vals)[-1] <- paste0(names(raster_focal_vals)[-1], "_sd")
@@ -111,8 +114,10 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   
   # compute chromatic coordinates
   training_data <- training_data %>%
-    mutate(ndvi = (Red - NIR) / (Red + NIR),
+    mutate(ndvi = (NIR - Red) / (NIR + Red),
+           ndwi = (Green - NIR) / (Green + NIR),
            bai = 1 / ( (0.1 - Red)^2 + (0.06 - NIR)^2 ),
+           gemi = ( 2 * ( NIR ^2 - Red ^2) + 1.5 * NIR + 0.5 * Red ) / ( NIR + Red + 0.5 ) ,
            rcc = Red / (Red + Blue + Green),
            bcc = Blue / (Red + Blue + Green),
            gcc = Green / (Red + Blue + Green),
@@ -123,10 +128,8 @@ get_raster_values <- function(fn_raster, features, sel_bands){
   
 }
 
-
-predict_burned_area <- function(config, raster_files_pre, raster_files_post, training_polygons){
+predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, training_polygons, poly_mask){
   ### 1. configure inputs ----
-  aoi_name <- config[[1]] # get aoi name
   
   # Get filenames in that aoi
   fn_raster_pre <- raster_files_pre[grepl(aoi_name,raster_files_pre)]
@@ -139,11 +142,15 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
   cat(sprintf("Predict burned area for: %s.",site))
   
   ### 2. gather raster values ----
-  training_data_pre <- get_raster_values(fn_raster_pre, training_polygons, sel_bands)
-  training_data_post <- get_raster_values(fn_raster_post, training_polygons, sel_bands)
+  
+  # Define bands to extract (SuperDove = ('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'))
+  sel_bands <- c('Blue','Green','Red','NIR')
+  
+  training_data_pre <- get_raster_values(fn_raster_pre, poly_mask, training_polygons, sel_bands)
+  training_data_post <- get_raster_values(fn_raster_post, poly_mask, training_polygons, sel_bands)
 
   # Compute differences in normalized bands & indices and add to post-fire data
-  cols_to_diff <- c("ndvi", "bai", "rcc", "bcc", "gcc")
+  cols_to_diff <- c("ndvi","ndwi", "bai", "rcc", "bcc", "gcc","gemi")
   training_data <- training_data_post %>%
     mutate(across(all_of(cols_to_diff), ~ . - training_data_pre[[cur_column()]], .names = "D{.col}"))
   
@@ -175,9 +182,9 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
   }
   
   bands_of_interest <- c("Red", "Green", "Blue","NIR",
-                         "gcc_sd","rcc_sd","bcc_sd","bai_sd","ndvi_sd",
-                         "rcc", "gcc", "bcc","ndvi", "bai",
-                         "Dndvi","Dbai","Drcc","Dbcc","Dgcc" )
+                         "gcc_sd","rcc_sd","bcc_sd","bai_sd","ndvi_sd","ndwi_sd",
+                         "rcc", "gcc", "bcc","ndvi","ndwi", "bai","gemi",
+                         "Dndvi","Dndwi","Dbai","Dgemi","Drcc","Dbcc","Dgcc" )
   
   sep_stats <- map_dfr(bands_of_interest, calculate_separability)
   
@@ -242,7 +249,6 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
     cat("Top 5 Row Names with highest GINI:\n", top_rows, "\n")
     pred_choice <- "top5GINI"
   }
-  # top_rows_aoi2 <- c("NIR","bai","Dndvi","Dbai","bai_sd")
   
   ### 5. Train random forest model on top 5 ----
   rf_fit <- randomForest(formula(paste('Burned ~',paste(top_rows,collapse = "+"))),
@@ -256,11 +262,16 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
   fn_conf_matrix <- paste0("tables/rf_confusion_matrix_",site,"_",pred_choice,".txt")
   
   file_connection <- file(fn_conf_matrix)
+  
   confusionMatrix(data = test_preds, validation$Burned) %>%
     print() %>%
     capture.output() %>%
-    writeLines(file_connection)
-  close(file_connection)
+    writeLines(file_connection) 
+  
+  write(paste(rownames(sep_stats[order(-sep_stats$TD),]),
+              sep_stats[order(-sep_stats$TD),'TD'],
+              collapse = '\n', sep = ':'),
+      file = fn_conf_matrix, append = TRUE)
   
   ### 7. Prepare rasters for prediction ----
   
@@ -282,9 +293,13 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
       if(band %in% c("rcc", "gcc", "bcc")) {
         r <- get_CC(img,band)
       } else if(band == "ndvi"){
-        r <- (img[["Red"]] - img[["NIR"]]) / (img[["Red"]] + img[["NIR"]])
+        r <- (img[["NIR"]] - img[["Red"]]) / (img[["NIR"]] + img[["Red"]])
+      } else if(band == "ndwi"){
+        r <- (img[["Green"]] - img[["NIR"]]) / (img[["Green"]] + img[["NIR"]])
       } else if(band == "bai"){
         r <- 1 / ( (0.1 - img[["Red"]])^2 + (0.06 - img[["NIR"]])^2 )
+      } else if(band == "gemi"){
+        r <- ( 2 * ( img[["NIR"]] ^2 - img[["Red"]] ^2) + 1.5 * img[["NIR"]] + 0.5 * img[["Red"]] ) / ( img[["NIR"]] + img[["Red"]] + 0.5 ) 
       }
       names(r) <- band
       
@@ -293,9 +308,13 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
     
     # Load predictors
     vnir_bands <- c("Red","Green","Blue","NIR")
-    band_indices <- c("bai","ndvi","rcc","bcc","gcc")
-    band_diffs <- c("Dndvi","Dbai","Drcc","Dbcc","Dgcc")
-    focal_indices <- c("Blue_sd","Green_sd","Red_sd","rcc_sd","gcc_sd","bcc_sd","bai_sd","ndvi_sd")
+    band_indices <- c("bai","ndvi","ndwi","gemi",
+                      "rcc","bcc","gcc")
+    band_diffs <- c("Dndvi","Dndwi","Dbai","Dgemi",
+                    "Drcc","Dbcc","Dgcc")
+    focal_indices <- c("Blue_sd","Green_sd","Red_sd",
+                       "rcc_sd","gcc_sd","bcc_sd",
+                       "bai_sd","ndvi_sd","ndwi_sd")
     
     if (any(vnir_bands %in% top_rows) ) {
       bands <- intersect(vnir_bands,top_rows)
@@ -304,13 +323,14 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
       # Load raster
       rast_vnir <- rast(fn_raster_post)[[bands]]
       
-    } 
+    } else {rast_vnir <- NULL}
     if (any(band_indices %in% top_rows) ) {
       bands <- intersect(band_indices,top_rows)
       cat(paste("Retrieving", bands, "for prediction.\n") )
       
       # Load raster
       rast_indices <- rast( map(bands, ~compute_image(fn_raster_post, .)) )
+      names(rast_indices) <- bands
       
     } else {rast_indices <- NULL}
     if (any(band_diffs %in% top_rows) ){
@@ -343,12 +363,16 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
       rast_focal <- rast_focal[bands]
     } else {rast_focal <- NULL}
     
-    # Predict entire image
-    predictors <- c(rast_vnir,
-                    rast_indices,
-                    rast_diffs,
-                    rast_focal)
+    # merge all predictor rasters
+    rast_list <- list(rast_indices, rast_vnir, rast_diffs, rast_focal) # first create list
     
+    # remove any NULL entity from the list
+    rast_list <- rast_list[!sapply(rast_list, is.null)]
+    
+    # Concatenate the raster objects
+    predictors <- do.call(c, rast_list)
+    
+    # Predict entire image
     cat("Predicting raster...\n")
     preds <- terra::predict(predictors, rf_fit)
     
@@ -372,5 +396,38 @@ predict_burned_area <- function(config, raster_files_pre, raster_files_post, tra
   return(NULL)
 } # end of function
 
-predict_burned_area(config, raster_files_pre, raster_files_post, training_polygons)
 
+# Execute function ----
+
+if(predict_all_aois){
+  # setup cluster
+  cl <- makeCluster(7)
+  
+  clusterEvalQ(cl, c(library(terra),
+                     library(tidyverse),
+                     library(tidyterra),
+                     library(caret),
+                     library(sf),
+                     library(spatialEco),
+                     library(randomForest),
+                     library(cowplot),
+                     library(scico))
+               )
+  clusterExport(cl, c("predict_burned_area","get_raster_values"), 
+                envir=environment())
+  
+  # Crop images
+  pblapply(
+    aoi_names,
+    raster_files_pre = raster_files_pre,
+    raster_files_post = raster_files_post,
+    training_polygons = training_polygons,
+    poly_mask = poly_mask,
+    FUN = predict_burned_area,
+    cl = 7)
+  
+  # Stop cluster
+  stopCluster(cl)
+} else {
+  predict_burned_area(aoi_name, raster_files_pre, raster_files_post, training_polygons, poly_mask)
+}
