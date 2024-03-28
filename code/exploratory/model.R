@@ -2,42 +2,26 @@ library(terra)
 library(tidyverse)
 library(tidyterra)
 library(tidybayes)
-library(scico)
-library(RColorBrewer)
-library(cowplot)
-library(GGally)
-library(scales)
-library(glcm)
-library(gbm)
-library(caret)
-library(car)
 library(brms)
-library(DHARMa)
-library(sjPlot)
 
 # 1. Configuration ----
 window_side_length <- 30 # in metres
 
-model_all_aois <- TRUE
-
-# should a new model be built to predict burned fraction over LarcgeScarControl?
-predict_bf <- FALSE
-
-# Provide a part of the AOI name for processing
-if (model_all_aois){
-  aoi_names <- c('LargeScarCenter',
-                 'LargeScarControl',
-                 'Kosukhino',
-                 'Berelech',
-                 'DrainedThawlake')
-} else {
-  aoi_names <- c('LargeScarCenter')
-}
+model_all_aois <- TRUE  # model all AOIs or just one?
+use_planet_wa <-FALSE    # use Planet water mask (=TRUE) or Landsat's QA mask (=FALSE)?
+predict_bf <- FALSE     # run prediction analysis over LarcgeScarControl?
 
 # Load areas of interest
 aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
+
+# Provide a part of the AOI name for processing
+if (model_all_aois){
+  aoi_names <- aois$site
+} else {
+  aoi_names <- c('LargeScarCenter')
+}
 
 # 2. Prepare data ----
 prepare_data <- function(aoi_name, window_side_length){
@@ -70,7 +54,7 @@ prepare_data <- function(aoi_name, window_side_length){
   lst_scale_factor <- 0.00341802 	
   lst_offset <- 149 - 273.15
   
-  if (aoi$site %in% c("LargeScarControl","LargeScarCenter")){
+  if (aoi$site %in% c("LargeScarControl","LargeScarCenter","Libenchik")){
     qa <- rast(paste0(ls_path,'LC08_L2SP_116010_20200615_20200824_02_T1_QA_PIXEL.TIF')) %>% 
       crop(aoi)
     
@@ -215,12 +199,23 @@ prepare_data <- function(aoi_name, window_side_length){
   names(fraction_unburned) <- 'unburned_fraction'
   
   ### water mask ----
-  wa_path <- list.files('data/geodata/raster/water_area/planet/',
+  if(use_planet_wa){
+    wa_path <- list.files('data/geodata/raster/water_area/planet/',
                         pattern = paste0(aoi$site,'.*water_area_top5TD\\.tif$'),
                         full.names = TRUE)
-  wa <- rast(wa_path) %>% 
-    crop(aoi) %>% 
-    resample(raster_grid_template,'mode')
+    wa <- rast(wa_path) %>% 
+      crop(aoi) %>% 
+      resample(raster_grid_template,'mode')
+  } else{
+    wa <- ifel(qa == 21824,1,2)       # if not clear, observation, then is masked out
+    plot(wa)
+    
+    writeRaster(wa,
+                filename = paste0("data/geodata/raster/water_area/",aoi$site,
+                                  "_Landsat_mask.tif"),
+                overwrite = T
+    )
+  }
   
   ## gather all predictors and mask water areas ----
   predictors <- c(fraction_burned,
@@ -239,7 +234,8 @@ prepare_data <- function(aoi_name, window_side_length){
   nsample <- 3e3
   
   # Sample n pixels and mask with burn perimeter
-  random_points <- spatSample(raster_grid_template,nsample, as.points = T,values = F) %>% 
+  random_points <- spatSample(raster_grid_template,nsample, 
+                              as.points = TRUE,values = FALSE) %>% 
     mask(bp) 
   
   if (has_mask){
@@ -248,7 +244,7 @@ prepare_data <- function(aoi_name, window_side_length){
   }
   
   # Extract data at random points 
-  data <- terra::extract(predictors, random_points,ID = F) %>% 
+  data <- terra::extract(predictors, random_points,ID = FALSE, xy = TRUE) %>% 
     drop_na() 
   data$site <- aoi$site
   
@@ -284,275 +280,74 @@ load_data <- function(aoi_name, path){
  
 }
 
-# 3. Build model ----
+# 3. Apply model ----
+use_all_points <- TRUE
 
-# Merge all dataframes together
-model_data <- do.call(rbind,
-                      lapply(aoi_names, FUN = load_data, path = "tables/predictors/")) %>% 
-  dplyr::select(-X)
+if (use_all_points){
+  # Merge all dataframes together
+  model_data <- do.call(rbind,
+                        lapply(aoi_names, FUN = load_data, path = "tables/predictors/")) %>% 
+    dplyr::select(-X)
+  suffix <- ''
+} else {
+  # load model data with 400 m distance contstraint
+  model_data <- read.csv("tables/predictors/model_data_400m.csv")
+  suffix <- 'thinned_data_'
+}
 
-print(summary(model_data))
-
-# Scale data
+## a) Scale data ----
 model_data_scaled <- model_data %>% 
-  dplyr::select(-burned_fraction) %>% 
-  mutate(across(where(is.numeric), scale, center = TRUE, scale = TRUE)) %>% 
+  dplyr::select(-c(burned_fraction,x,y)) %>% 
+  mutate(across(where(is.numeric), \(x) scale(x, center = TRUE, scale = TRUE)) ) %>% 
   mutate(burned_fraction = model_data$burned_fraction)
 
 print(summary(model_data_scaled))
 
-model_data$site <- as.factor(model_data$site)
+model_data_scaled$site <- as.factor(model_data_scaled$site)
 
 # Define predictor variables for the model
 mod_vars <- c('elevation','slope','northness','eastness','tpi_500', 
-              'LST','NDVI','NDVI_sd')
+              'LST','NDVI_sd','NDVI')
 
-# ran_slopes <- do.call(paste, 
-#                       c(sep = ' + ',
-#                         lapply(mod_vars, FUN = function (x) sprintf('(1 + %s|site)', x) ))
-# )
-ran_slopes <- paste('(1 +',paste(mod_vars, collapse = ' + '),'| site)' )
-mod_formula_raneff <- formula(paste('burned_fraction ~ (1|site) +',paste(mod_vars, collapse = '+')))
-
-mod_formula <- formula(paste('burned_fraction ~ ',paste(mod_vars, collapse = '+'),'+',ran_slopes))
+mod_formula <- formula(paste('burned_fraction ~ (1| site) +',paste(mod_vars, collapse = '+')))
+phi_formula <- formula(paste('phi ~ (1| site) +',paste(mod_vars, collapse = '+')))
+zoi_formula <- formula(paste('zoi ~ (1| site) +',paste(mod_vars, collapse = '+')))
+coi_formula <- formula(paste('coi ~ (1| site) +',paste(mod_vars, collapse = '+')))
 
 # Check for multicollinearity using a linear model
-# lm_mod <- lm(mod_formula, data = model_data)
 lm_mod <- lme4::lmer(mod_formula, data = model_data_scaled)
 performance::multicollinearity(lm_mod)
 
-## Zero-One inflated beta regression ----
+## b) Run zero-one inflated beta regression ----
 n_iter <- 10000
 n_thin <- ifelse(n_iter > 5000, 10, 1)
 
 zoi_beta_model <- brm(
-  bf(mod_formula),
+  bf(mod_formula,
+     phi_formula,
+     zoi_formula,
+     coi_formula),
   data = model_data_scaled,
   family = zero_one_inflated_beta(),
   chains = 4, 
   iter = n_iter, 
-  # use default warmup (iter/2)
-  # warmup = 1000, 
+  # warmup = 1000,        # use default warmup (iter/2)
   thin = n_thin,
   cores = 4, seed = 1234,
-  file = paste0("zoi_beta_model_",today())
+  file = paste0("zoi_beta_model_",suffix,today())
 )
 
-# zoi_beta_model <- readRDS('zoi_beta_model_2024-03-11.rds')
+# fit Null model
+null_model <- brm(
+  bf(burned_fraction ~ 1), 
+  family = zero_one_inflated_beta(), 
+  data = model_data_scaled,chains = 4, 
+  iter = n_iter, 
+  thin = n_thin,
+  cores = 4, seed = 1234,
+  file = paste0("null_model_",today())
+)
 
+## c) Diagnose model ----
 summary(zoi_beta_model)
-
-# Diagnostic plots:
-plot(zoi_beta_model)
-pp_check(zoi_beta_model)
-
-residuals <- createDHARMa(simulatedResponse = t(posterior_predict(zoi_beta_model, ndraws = 100)),
-                          observedResponse = model_data_scaled$burned_fraction,    # response variable
-                          fittedPredictedResponse = apply(t(posterior_epred(zoi_beta_model, ndraws = 100)), 1, mean),
-                          integerResponse = TRUE)
-
-plot(residuals) 
-
-# Check individual predictors: 
-for (v in mod_vars){
-  cat(v)
-  plotResiduals(residuals, form = model_data_scaled[[v]],xlab = v)
-}
-
-# extract conditional effects
-ce <- conditional_effects(zoi_beta_model)
-# plot(ce,points = F,rug = T)
-
-labels = c(elevation = 'Elevation (m)',
-              slope = 'Slope (°)',
-              aspect = 'Aspect (°)',
-              northness = 'Northness (unitless)',
-              eastness = 'Eastness (unitless)',
-              tpi_500 = expression(TPI[500~m]),
-              LST = 'LST (° C)',
-              NDVI = expression(paste(NDVI[Landsat],
-                                      " (unitless)")), 
-              NDVI_sd = expression(paste(sigma~NDVI[Planet],
-                                         " (unitless)")),
-              burned_fraction = NULL)
-
-# Function to plot conditional effects
-plot_conditional_effects <- function(df, model_data_scaled, labels, save_plots = FALSE){
-  
-  # get variable name
-  var_name <- colnames(df)[1]
-  xlabel <- labels[var_name]
-  
-  # extract scaling factors
-  m <-attr(model_data_scaled[[var_name]],'scaled:center')
-  ss <-attr(model_data_scaled[[var_name]],'scaled:scale')
-  
-  p <- ggplot(df) + 
-    geom_ribbon(aes(x = effect1__* ss + m,ymin = lower__,ymax = upper__),
-                fill = 'grey70',alpha = .7) +
-    geom_line(aes(x = effect1__* ss + m ,y = estimate__)) +
-    geom_rug(data = attr(df,which = 'points'),
-             aes(x = !!sym(var_name)* ss + m),
-             sides = 'b', inherit.aes = F) +
-    scale_y_continuous(labels = label_percent()) +
-    scale_x_continuous(labels = label_number_auto()) +
-    labs(x = xlabel, y = 'Burned fraction') +
-    theme_cowplot()
-  
-  print(p)
-  
-  if(save_plots){
-    ggsave(sprintf('figures/model/ce_%s.png',var_name),
-           width = 10, height = 10, bg = 'white')
-  }
-}
-
-lapply(ce, plot_conditional_effects,labels = labels, 
-       model_data_scaled = model_data_scaled,save_plots = TRUE)
-
-# Extract posterior estimates
-dat_for_plot <- zoi_beta_model %>%
-  # The `b_.*` tells it to take any estimated parameter starting with 'b_'
-  gather_draws(`b_.*`, regex = TRUE) %>%
-  # You might want to keep the intercept, depends on the analysis: 
-  filter(!`.variable` %in% c("b_Intercept")) %>%
-  
-  # Reorder the levels:
-  mutate(`.variable` = factor(`.variable`,
-                              levels = get_variables(zoi_beta_model)[c(2:(length(mod_vars)+3))])) %>% 
-  mutate(mod_labs = tools::toTitleCase(sub("^b_", "", .variable)) )
-
-mod_labs <-c(b_elevation = 'Elevation',
-                b_slope = 'Slope',
-                b_northness = 'Northness',
-                b_eastness = 'Eastness',
-                b_tpi_500 = expression(TPI[500~m]),
-                b_LST = expression(LST[Landsat]),
-                b_NDVI = expression(NDVI[Landsat]), 
-                b_NDVI_sd = expression(sigma~NDVI[Planet])
-)
-
-# Plot the posterior estimates, more info here: https://cran.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html 
-plot <- ggplot(data = dat_for_plot, aes(y = .variable, x = .value)) +
-  stat_halfeye(.width = c(0.05,0.95),size = 0.5,fill = '#b5ccb9') +
-  geom_vline(xintercept = 0, linewidth = 0.3) +
-  scale_y_discrete(labels = mod_labs) +
-  theme_minimal_hgrid() + 
-  theme(panel.grid = element_blank(),
-        legend.position = "none") +
-  labs(x = "Posterior estimates", y = ""); plot
-
-ggsave(plot,filename = sprintf('figures/model/zoib_model_aoi_%s.png',today()),bg = 'white')
-
-# 4. Predict burned fraction in Large Scar Control AOI ----
-if (predict_bf){
-  aoi_names_subset <- c('LargeScarCenter','Kosukhino','Berelech','DrainedThawlake')
-  
-  # load model data
-  model_data_subset <- do.call(rbind,
-                               lapply(aoi_names_subset, FUN = load_data, path = "tables/predictors/"))
-  
-  model_data_subset_scaled <- model_data_subset %>% 
-    select(-X) %>% 
-    dplyr::select(-burned_fraction) %>% 
-    mutate(across(where(is.numeric), scale, center = TRUE, scale = TRUE)) %>% 
-    mutate(burned_fraction = model_data_subset$burned_fraction) %>% 
-    mutate(site = as.factor(site)) 
-    
-  
-  print(summary(model_data_subset_scaled))
-  
-  # use RandomForest for prediciton?
-  use_RF <- TRUE
-  
-  if(use_RF){
-    library(randomForest)
-    pred_model <- randomForest(burned_fraction ~ elevation + slope + LST + NDVI_sd + northness,
-                                             data = model_data_subset_scaled)
-    print(pred_model)
-    
-  } else {
-    pred_model <- brm(
-      bf(burned_fraction ~ elevation + slope + LST + NDVI_sd),
-      data = model_data_subset,
-      family = zero_one_inflated_beta(),
-      chains = 4, 
-      iter = n_iter, 
-      # use default warmup (iter/2)
-      # warmup = 1000, 
-      thin = n_thin,
-      cores = 4, seed = 1234,
-      file = paste0("zoi_beta_model_no_LSControl_",today())
-      )
-  
-    # assess model
-    summary(pred_model)
-    
-    plot(pred_model)
-  }
-  
-  # load predictors
-  LSControl_predictors <- rast(paste0("data/geodata/raster/predictors/LargeScarControl_predictors_",
-                                      window_side_length,"m.tif") )
-  
-  predictors_scaled <- LSControl_predictors %>% 
-    tidyterra::select(-burned_fraction) %>% 
-    mutate(site = 'LargeScarControl') %>% 
-    scale()
-  
-  # predict burned fraction in entire map
-  preds <- terra::predict(pred_model,predictors_scaled,cores = 4)
-  
-  preds_rast_df <- as.data.frame(predictors_scaled$elevation,xy = T) 
-  
-  if(use_RF){
-    preds_rast_df$burned_fraction_pred <- preds
-  } else {
-    # preds_rast_df$burned_fraction_pred <- plogis(preds[,1])
-    preds_rast_df$burned_fraction_pred <- preds[,1]
-  }
-  
-  preds_rast <- rast(preds_rast_df,type = 'xyz',
-                          crs = "EPSG:32655",extent = ext(predictors_scaled)) %>% 
-    subset('burned_fraction_pred') %>% 
-    mask(is.na(predictors_scaled$NDVI_sd),maskvalues = TRUE)
-  
-  # Assign observed burned fraction
-  preds_rast$burned_fraction_observed <- LSControl_predictors$burned_fraction
-  
-  # export predicted burned fraction
-  # writeRaster(preds_rast,
-  #             filename = "data/geodata/raster/burned_area/planet/predicted_BF_LSControl.tif",
-  #             overwrite = T
-  # )
-  
-  # Load burn perimeter
-  bp <- vect('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_LargeScarControl.shp') %>% 
-    crop(aois[aois$site == 'LargeScarControl' ])
-  
-  # Plot results of prediction
-  ggplot() + 
-    geom_spatraster(data = preds_rast) +
-    facet_wrap(~lyr) +
-    geom_spatvector(data = bp,color = 'black', fill = NA, size = 2) +
-    scale_fill_scico(palette = 'bilbao',direction = -1,na.value="white") +
-    theme_cowplot()
-  
-  ggsave('figures/model/LargeScarControl_pred_obs_bf_RF.png',
-         width = 16, height = 8,bg = 'white')
-  
-  # scatterplot obs. vs. pred
-  data_df <- data.frame(value1 = values(mask(LSControl_predictors$burned_fraction,bp)), 
-                        value2 = values(mask(preds_rast,bp))) %>% 
-    drop_na()
-  
-  # Scatterplot
-  ggplot() + 
-    geom_point(data = data_df, aes (x = data_df[,1], y = data_df[,2])) +
-    labs(x = "observed burn fraction",y = "predicted burn fraction") +
-    lims(x = c(0,1),y = c(0,1)) +
-    theme_cowplot()
-  
-  ggsave('figures/model/LargeScarControl_pred_obs_bf_scatter_RF.png',
-         width = 8, height = 8,bg = 'white')
-}
+summary(null_model)

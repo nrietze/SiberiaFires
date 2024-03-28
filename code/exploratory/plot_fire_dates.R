@@ -2,15 +2,12 @@ library(tidyverse)
 library(scales)
 library(sf)
 library(terra)
-library(scico)
-scico_palette_show()
 
 # Load MODIS hotspot archive data
 FNAME <- 'C:/data/3_fire_data/active_fires/modis/fire_archive_modis_cavm.csv'
 fire_data <- read.csv(FNAME) %>% 
   na.omit() %>% 
-  st_as_sf(., coords = c("LONGITUDE","LATITUDE")) %>% 
-  vect()
+  vect(geom = c("LONGITUDE","LATITUDE"))
 
 # Load areas of interest
 aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%

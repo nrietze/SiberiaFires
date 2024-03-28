@@ -16,30 +16,11 @@ library(pbapply)
 #  Configuration ----
 set.seed(10)
 
-# Should a burned area raster be produced?
-predict_water_raster <- TRUE
-
-# Should the RF model use the 5 predictors with highest transformed divergence index?
-use_top5_TD <- TRUE # if FALSE, the top 5 GINI predictors will be used
-
-# Should an individual AOI be processed or all?
-predict_all_aois <- TRUE
-
-# Provide a part of the AOI name for processing
-if (predict_all_aois){
-  aoi_names <- c('LargeScarCenter','LargeScarControl','Kosukhino','Berelech','DrainedThawlake')
-} else {
-  aoi_names <- c('LargeScarCenter')
-}
-
-# Define bands to extract (SuperDove = ('Coastal Blue','Blue','Green I','Green','Yellow','Red','Red Edge','NIR'))
-sel_bands <- c('Blue','Green','Red','NIR')
-
-# Plot figures generated during prediction?
-plot_results <- TRUE
-
-# Save those figures?
-save_plots <- TRUE
+predict_water_raster <- TRUE  # predict and export water area raster ?
+use_top5_TD <- TRUE           # use top 5 predictors based on transformed divergence (=TRUE) or GINI(=FALSE)
+predict_all_aois <- TRUE      # model all AOIs or just one?
+plot_results <- TRUE          # Plot figures generated during prediction?
+save_plots <- TRUE            # Save those figures?
 
 # °°°°°°°°°°°°°
 # Load ... ----
@@ -47,6 +28,13 @@ save_plots <- TRUE
 ##...areas of interest ----
 aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   mutate(., id = 1:nrow(.))
+
+# Provide a part of the AOI name for processing
+if (predict_all_aois){
+  aoi_names <- aois$site
+} else {
+  aoi_names <- c('LargeScarCenter')
+}
 
 ##... training polygons----
 training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') %>% 
@@ -130,15 +118,35 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
   ### 1. configure inputs ----
   # Get filenames in that aoi
   fn_raster_pre <- raster_files_pre[grepl(aoi_name,raster_files_pre)]
-  fn_raster_post <- raster_files_post[grepl(aoi_name,raster_files_post) & 
-                                        grepl('PS2',raster_files_post)]
+  fn_raster_post <- raster_files_post[grepl(aoi_name,raster_files_post)]
   
   # extract site name from filename
   site <- unlist(strsplit( basename(fn_raster_post),'_')) [2]
   
+  if (use_top5_TD){
+    pred_choice <- "top5TD"
+  } else {
+    pred_choice <- "top5GINI"
+  }
+  
+  # define output filenames
+  FNAME_OUT <- paste0("data/geodata/raster/water_area/planet/",
+                      site,"_water_area_",pred_choice,".tif")
+  
+  FNAME_PREDS_OUT <-paste0("data/geodata/raster/water_area/planet/",
+                             site,"_predictors_",pred_choice,".tif")
+  
+  # check if file exists
+  if (file.exists(FNAME_OUT)){
+    cat("File exists. Skipping water area prediction for this site. \n")
+    return(NULL)
+  }
+  
   cat(sprintf("Predict water area for: %s.",site))
   
   ### 2. gather raster values ----
+  sel_bands <- c('Blue','Green','Red','NIR')
+  
   training_data_pre <- get_raster_values(fn_raster_pre, poly_mask, training_polygons, sel_bands)
   training_data_post <- get_raster_values(fn_raster_post, poly_mask, training_polygons, sel_bands)
   
@@ -366,14 +374,12 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
     # Export rasters
     cat("Writing raster...\n")
     writeRaster(preds,
-                filename = paste0("data/geodata/raster/water_area/planet/",
-                                  site,"_water_area_",pred_choice,".tif"),
+                filename = FNAME_OUT,
                 overwrite = T
     )
     
     writeRaster(predictors,
-                filename = paste0("data/geodata/raster/water_area/planet/",
-                                  site,"_predictors_",pred_choice,".tif"),
+                filename = FNAME_PREDS_OUT,
                 overwrite = T
     )
     

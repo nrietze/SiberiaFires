@@ -16,27 +16,12 @@ library(pbapply)
 #  Configuration ----
 set.seed(10)
 
-# Should a burned area raster be produced?
-predict_burn_raster <- TRUE
 
-# Should the RF model use the 5 predictors with highest transformed divergence index?
-use_top5_TD <- TRUE # if FALSE, the top 5 GINI predictors will be used
-
-# Should an individual AOI be processed or all?
-predict_all_aois <- TRUE
-
-# Provide a part of the AOI name for processing
-if (predict_all_aois){
-  aoi_names <- c('LargeScarCenter','LargeScarControl','Kosukhino','Berelech','DrainedThawlake')
-} else {
-  aoi_names <- 'LargeScarCenter'
-}
-
-# Plot figures generated during prediction?
-plot_results <- TRUE
-
-# Save those figures?
-save_plots <- TRUE
+predict_burn_raster <- TRUE  # predict and export burned area raster ?
+use_top5_TD <- TRUE           # use top 5 predictors based on transformed divergence (=TRUE) or GINI(=FALSE)
+predict_all_aois <- TRUE      # model all AOIs or just one?
+plot_results <- TRUE          # Plot figures generated during prediction?
+save_plots <- TRUE            # Save those figures?
 
 # °°°°°°°°°°°°°
 # Load ... ----
@@ -44,6 +29,13 @@ save_plots <- TRUE
 ##...areas of interest ----
 aois <- read_sf('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   mutate(., id = 1:nrow(.))
+
+# Provide a part of the AOI name for processing
+if (predict_all_aois){
+  aoi_names <- aois$site
+} else {
+  aoi_names <- 'LargeScarCenter'
+}
 
 ##... training polygons----
 training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') %>% 
@@ -128,18 +120,38 @@ get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
   
 }
 
-predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, training_polygons, poly_mask){
+predict_burned_area <- function(aoi_name,
+                                raster_files_pre, 
+                                raster_files_post, 
+                                training_polygons,
+                                poly_mask){
   ### 1. configure inputs ----
   
   # Get filenames in that aoi
   fn_raster_pre <- raster_files_pre[grepl(aoi_name,raster_files_pre)]
-  fn_raster_post <- raster_files_post[grepl(aoi_name,raster_files_post) & 
-                                        grepl('PS2',raster_files_post)]
+  fn_raster_post <- raster_files_post[grepl(aoi_name,raster_files_post)]
   
   # extract site name from filename
   site <- unlist(strsplit( basename(fn_raster_post),'_')) [2]
   
-  cat(sprintf("Predict burned area for: %s.",site))
+  if (use_top5_TD){
+    pred_choice <- "top5TD"
+  } else {
+    pred_choice <- "top5GINI"
+  }
+  
+  # define output filenames
+  FNAME_OUT <- paste0("data/geodata/raster/burned_area/planet/",
+                      site,"_burned_area_",pred_choice,".tif")
+  
+  FNAME_PREDS_OUT <- paste0("data/geodata/raster/burned_area/planet/",
+                            site,"_predictors_",pred_choice,".tif")
+  
+  # check if file exists
+  if (file.exists(FNAME_OUT)){
+    cat("File exists. Skipping burned area prediction for this site. \n")
+    return(NULL)
+  }
   
   ### 2. gather raster values ----
   
@@ -182,7 +194,7 @@ predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, t
   }
   
   bands_of_interest <- c("Red", "Green", "Blue","NIR",
-                         "gcc_sd","rcc_sd","bcc_sd","bai_sd","ndvi_sd","ndwi_sd",
+                         # "gcc_sd","rcc_sd","bcc_sd","bai_sd","ndvi_sd","ndwi_sd",
                          "rcc", "gcc", "bcc","ndvi","ndwi", "bai","gemi",
                          "Dndvi","Dndwi","Dbai","Dgemi","Drcc","Dbcc","Dgcc" )
   
@@ -237,7 +249,6 @@ predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, t
     # Get top 5 bands based on TD separability 
     top_rows <- rownames(sep_stats)[order(-sep_stats$TD)[1:5]]
     cat("Top 5 Row Names with highest TD Values:\n", top_rows, "\n")
-    pred_choice <- "top5TD"
     
   } else {
     # Get top 5 bands based on mean GINI
@@ -247,7 +258,6 @@ predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, t
     top_n(5, Overall) %>%
     rownames()
     cat("Top 5 Row Names with highest GINI:\n", top_rows, "\n")
-    pred_choice <- "top5GINI"
   }
   
   ### 5. Train random forest model on top 5 ----
@@ -379,14 +389,12 @@ predict_burned_area <- function(aoi_name, raster_files_pre, raster_files_post, t
     # Export rasters
     cat("Writing raster...\n")
     writeRaster(preds,
-                filename = paste0("data/geodata/raster/burned_area/planet/",
-                                  site,"_burned_area_",pred_choice,".tif"),
+                filename = FNAME_OUT,
                 overwrite = T
     )
     
     writeRaster(predictors,
-                filename = paste0("data/geodata/raster/burned_area/planet/",
-                                  site,"_predictors_",pred_choice,".tif"),
+                filename = FNAME_PREDS_OUT,
                 overwrite = T
     )
     
