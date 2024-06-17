@@ -59,6 +59,14 @@ raster_files_post <- list.files(sprintf('C:/data/8_planet/%s/cropped/',post_year
 
 # Set up functions ----
 
+# function to compute the GEMI
+GetGEMI <- function(NIR, Red){
+  term1 <- (2 * (NIR^2 - Red^2) + 1.5 * NIR + 0.5 * Red) /
+    (NIR + Red + 0.5)
+  gemi <- term1 * (1 - 0.25 * term1) - ((Red - 0.125) / (1 - Red))
+  return(gemi)
+}
+
 # Function to extract raster values within training polygons
 get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
   cat("\nProcessing", fn_raster, "\n")
@@ -104,6 +112,7 @@ get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
   training_data <- training_data %>%
     mutate(ndvi = (NIR - Red) / (NIR + Red),
            ndwi = (Green - NIR) / (Green + NIR),
+           gemi = GetGEMI(NIR,Red),
            rcc = Red / (Red + Blue + Green),
            bcc = Blue / (Red + Blue + Green),
            gcc = Green / (Red + Blue + Green),
@@ -151,7 +160,7 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
   training_data_post <- get_raster_values(fn_raster_post, poly_mask, training_polygons, sel_bands)
   
   # Compute differences in normalized bands & indices and add to post-fire data
-  cols_to_diff <- c("ndvi", "ndwi", "rcc", "bcc", "gcc")
+  cols_to_diff <- c("ndvi", "ndwi", "rcc", "bcc", "gcc","gemi")
   training_data <- training_data_post %>%
     mutate(across(all_of(cols_to_diff), ~ . - training_data_pre[[cur_column()]], .names = "D{.col}"))
   
@@ -167,10 +176,16 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
   
   # Split into training and validation
   training_sample$id <- 1:nrow(training_sample)
-  training <- training_sample %>%
-    group_by(iswater) %>%
-    slice_sample(prop = 0.8)
-  validation <- filter(training_sample, !(id %in% training$id)) 
+  
+  groups <- training_sample %>%
+    group_by(ID, iswater) %>%
+    summarize(n = n(), .groups = 'drop')
+  train_indices <- createDataPartition(groups$iswater, p = 0.8, list = FALSE)
+  train_ids <- groups$ID[train_indices]
+  val_ids <- setdiff(groups$ID, train_ids)
+  
+  training <- training_sample  %>% filter(ID %in% train_ids)
+  validation <- training_sample %>% filter(ID %in% val_ids) 
   
   ### 4. Calculate separability ----
   calculate_separability <- function(variable_name) {
@@ -182,10 +197,9 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
   }
   
   bands_of_interest <- c("Red", "Green", "Blue","NIR",
-                         "gcc_sd","rcc_sd","bcc_sd","ndwi_sd","ndvi_sd",
-                         "rcc", "gcc", "bcc","ndvi", "ndwi",
+                         # "gcc_sd","rcc_sd","bcc_sd","ndwi_sd","ndvi_sd",
+                         "rcc", "gcc", "bcc","ndvi", "ndwi","gemi",
                          "Dndvi","Dndwi","Drcc","Dbcc","Dgcc" )
-  
   
   sep_stats <- map_dfr(bands_of_interest, calculate_separability)
   
@@ -250,7 +264,6 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
     cat("Top 5 Row Names with highest GINI:\n", top_rows, "\n")
     pred_choice <- "top5GINI"
   }
-  # top_rows_aoi2 <- c("NIR","bai","Dndvi","Dbai","bai_sd")
   
   ### 5. Train random forest model on top 5 ----
   rf_fit <- randomForest(formula(paste('iswater ~',paste(top_rows,collapse = "+"))),
@@ -299,6 +312,8 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
         r <- (img[["NIR"]] - img[["Red"]]) / (img[["NIR"]] + img[["Red"]])
       } else if(band == "ndwi"){
         r <- (img[["Green"]] - img[["NIR"]]) / (img[["Green"]] + img[["NIR"]])
+      } else if(band == "gemi"){
+        r <- GetGEMI(img[["NIR"]],img[["Red"]])
       }
       names(r) <- band
       
@@ -307,7 +322,7 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
     
     # Load predictors
     vnir_bands <- c("Red","Green","Blue","NIR")
-    band_indices <- c("ndwi","ndvi","rcc","bcc","gcc")
+    band_indices <- c("ndwi","ndvi","rcc","bcc","gcc","gemi")
     band_diffs <- c("Dndvi","Dndwi","Drcc","Dbcc","Dgcc")
     focal_indices <- c("Blue_sd","Green_sd","Red_sd","rcc_sd","gcc_sd","bcc_sd","ndwi_sd","ndvi_sd")
     
@@ -364,12 +379,13 @@ predict_water_area <- function(aoi_name, raster_files_pre, raster_files_post, tr
     rast_list <- rast_list[!sapply(rast_list, is.null)]
     
     # Concatenate the raster objects
-    predictors <- do.call(c, rast_list)
+    predictors <- do.call(c, rast_list) %>% 
+      subst(., -Inf, NA)
     
     # Predict entire image
     cat("Predicting raster...\n")
     print(rast_focal)
-    preds <- terra::predict(predictors, rf_fit) 
+    preds <- terra::predict(predictors, rf_fit,na.rm = TRUE) 
     
     # Export rasters
     cat("Writing raster...\n")

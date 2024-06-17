@@ -15,6 +15,7 @@ year <- 2019
 
 # Load list of raster files
 raster_path <- paste0('C:/data/8_planet/',year,'/original')
+# raster_path <- paste0('C:/data/8_planet/',year,'/unharmonized/20190901')
 
 raster_files <- list.files(raster_path,
                            recursive = T,

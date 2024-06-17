@@ -16,7 +16,6 @@ library(pbapply)
 #  Configuration ----
 set.seed(10)
 
-
 predict_burn_raster <- TRUE  # predict and export burned area raster ?
 use_top5_TD <- TRUE           # use top 5 predictors based on transformed divergence (=TRUE) or GINI(=FALSE)
 predict_all_aois <- TRUE      # model all AOIs or just one?
@@ -59,17 +58,23 @@ raster_files_post <- list.files(sprintf('C:/data/8_planet/%s/cropped/',post_year
 
 # Set up functions ----
 
+# function to compute the GEMI
+GetGEMI <- function(NIR, Red){
+  term1 <- (2 * (NIR^2 - Red^2) + 1.5 * NIR + 0.5 * Red) /
+    (NIR + Red + 0.5)
+  gemi <- term1 * (1 - 0.25 * term1) - ((Red - 0.125) / (1 - Red))
+  return(gemi)
+}
+
 # Function to extract raster values within training polygons
 get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
-  cat("\nProcessing", fn_raster, "\n")
-  
-  window <- 5
-  f_stat <- 'sd'
-  
-  fn_raster_focal <- gsub("composite", paste0("focal_", window, "_", f_stat), fn_raster)
+  cat("\n Extracting raster values: ", fn_raster, "\n")
   
   # Load raster data
   rast_refl <- rast(fn_raster) %>% mask(.,poly_mask,inverse = T)
+  
+  # Load focal raster (NOT USED)
+  fn_raster_focal <- gsub("composite", paste0("focal_5_sd"), fn_raster)
   rast_focal <- rast(fn_raster_focal) %>% mask(.,poly_mask,inverse = T)
   names(rast_focal) <- paste0(names(rast_focal),'_sd')
   
@@ -109,12 +114,11 @@ get_raster_values <- function(fn_raster, poly_mask, features, sel_bands){
     mutate(ndvi = (NIR - Red) / (NIR + Red),
            ndwi = (Green - NIR) / (Green + NIR),
            bai = 1 / ( (0.1 - Red)^2 + (0.06 - NIR)^2 ),
-           gemi = ( 2 * ( NIR ^2 - Red ^2) + 1.5 * NIR + 0.5 * Red ) / ( NIR + Red + 0.5 ) ,
+           gemi = GetGEMI(NIR,Red),
            rcc = Red / (Red + Blue + Green),
            bcc = Blue / (Red + Blue + Green),
            gcc = Green / (Red + Blue + Green),
     )
-  
   
   return(training_data)
   
@@ -126,6 +130,8 @@ predict_burned_area <- function(aoi_name,
                                 training_polygons,
                                 poly_mask){
   ### 1. configure inputs ----
+  
+  cat(sprintf("Processing %s ... \n",aoi_name))
   
   # Get filenames in that aoi
   fn_raster_pre <- raster_files_pre[grepl(aoi_name,raster_files_pre)]
@@ -176,15 +182,20 @@ predict_burned_area <- function(aoi_name,
     na.omit() %>%
     sample_n(50,replace = TRUE)
   
-  
   # Split into training and validation
   training_sample$id <- 1:nrow(training_sample)
-  training <- training_sample %>%
-    group_by(Burned) %>%
-    slice_sample(prop = 0.8)
-  validation <- filter(training_sample, !(id %in% training$id)) 
   
-  ### 4. Calculate separability ----
+  groups <- training_sample %>%
+    group_by(ID, Burned) %>%
+    summarize(n = n(), .groups = 'drop')
+  train_indices <- createDataPartition(groups$Burned, p = 0.8, list = FALSE)
+  train_ids <- groups$ID[train_indices]
+  val_ids <- setdiff(groups$ID, train_ids)
+  
+  training <- training_sample  %>% filter(ID %in% train_ids)
+  validation <- training_sample %>% filter(ID %in% val_ids)
+  
+### 4. Calculate separability ----
   calculate_separability <- function(variable_name) {
     separability(
       filter(training_sample, Burned == 'unburned') %>% ungroup() %>% select(!!variable_name ),
@@ -202,27 +213,27 @@ predict_burned_area <- function(aoi_name,
   
   if (plot_results){
     # Plot separability
-    plot_separability <- function(band="Red"){
-      training_sample$band_to_plot <- pull(training_sample, !!band)
-      y_pos <- max(training_sample$band_to_plot) * .9
-      
-      p <- ggplot(training_sample) +
-        geom_violin(aes(x = Burned,
-                        y = band_to_plot, 
-                        fill = Burned)) +
-        geom_text(data = sep_stats[band,], 
-                  aes(x = 2, y = y_pos, 
-                      label = paste("TD =", 
-                                    formatC(TD, format = "f", digits = 2)),
-                      hjust = 0,
-                      fontface = "bold")) +
-        labs(x = 'Burned class',y = band) +
-        theme_cowplot() +
-        theme(legend.position = "none",
-              strip.background = element_rect(fill = "white"))
-      
-      return(p)
-    }
+      plot_separability <- function(band="Red"){
+        training_sample$band_to_plot <- pull(training_sample, !!band)
+        y_pos <- max(training_sample$band_to_plot) * .9
+        
+        p <- ggplot(training_sample) +
+          geom_violin(aes(x = Burned,
+                          y = band_to_plot, 
+                          fill = Burned)) +
+          geom_text(data = sep_stats[band,], 
+                    aes(x = 2, y = y_pos, 
+                        label = paste("TD =", 
+                                      formatC(TD, format = "f", digits = 2)),
+                        hjust = 0,
+                        fontface = "bold")) +
+          labs(x = 'Burned class',y = band) +
+          theme_cowplot() +
+          theme(legend.position = "none",
+                strip.background = element_rect(fill = "white"))
+        
+        return(p)
+      }
     
     plot_list <- map(bands_of_interest,plot_separability)
     
@@ -278,6 +289,8 @@ predict_burned_area <- function(aoi_name,
     capture.output() %>%
     writeLines(file_connection) 
   
+  cat("writing confusion matrix ... \n")
+  
   write(paste(rownames(sep_stats[order(-sep_stats$TD),]),
               sep_stats[order(-sep_stats$TD),'TD'],
               collapse = '\n', sep = ':'),
@@ -309,7 +322,7 @@ predict_burned_area <- function(aoi_name,
       } else if(band == "bai"){
         r <- 1 / ( (0.1 - img[["Red"]])^2 + (0.06 - img[["NIR"]])^2 )
       } else if(band == "gemi"){
-        r <- ( 2 * ( img[["NIR"]] ^2 - img[["Red"]] ^2) + 1.5 * img[["NIR"]] + 0.5 * img[["Red"]] ) / ( img[["NIR"]] + img[["Red"]] + 0.5 ) 
+        r <- GetGEMI(img[["NIR"]],img[["Red"]])
       }
       names(r) <- band
       
@@ -380,11 +393,12 @@ predict_burned_area <- function(aoi_name,
     rast_list <- rast_list[!sapply(rast_list, is.null)]
     
     # Concatenate the raster objects
-    predictors <- do.call(c, rast_list)
+    predictors <- do.call(c, rast_list) %>% 
+      subst(., -Inf, NA)
     
     # Predict entire image
     cat("Predicting raster...\n")
-    preds <- terra::predict(predictors, rf_fit)
+    preds <- terra::predict(predictors, rf_fit,na.rm = TRUE)
     
     # Export rasters
     cat("Writing raster...\n")
@@ -437,5 +451,6 @@ if(predict_all_aois){
   # Stop cluster
   stopCluster(cl)
 } else {
+  aoi_name <- "Berelech"
   predict_burned_area(aoi_name, raster_files_pre, raster_files_post, training_polygons, poly_mask)
 }
