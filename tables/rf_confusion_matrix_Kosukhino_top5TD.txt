@@ -1,0 +1,45 @@
+Confusion Matrix and Statistics
+
+          Reference
+Prediction unburned burned
+  unburned      290      5
+  burned         60    345
+                                          
+               Accuracy : 0.9071          
+                 95% CI : (0.8832, 0.9276)
+    No Information Rate : 0.5             
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.8143          
+                                          
+ Mcnemar's Test P-Value : 2.115e-11       
+                                          
+            Sensitivity : 0.8286          
+            Specificity : 0.9857          
+         Pos Pred Value : 0.9831          
+         Neg Pred Value : 0.8519          
+             Prevalence : 0.5000          
+         Detection Rate : 0.4143          
+   Detection Prevalence : 0.4214          
+      Balanced Accuracy : 0.9071          
+                                          
+       'Positive' Class : unburned        
+                                          
+gemi:1.97691663150084
+Dgemi:1.56077076624004
+NIR:1.21624652498865
+bai:1.21286318460436
+Dbai:1.13262803445747
+Dndvi:0.922476479459813
+ndvi:0.78323807682775
+ndwi:0.779701934793645
+Dndwi:0.753333399293911
+gcc:0.7171532162865
+Green:0.643814666360597
+Dbcc:0.543766177175858
+Dgcc:0.436188123570354
+Red:0.340353562553894
+rcc:0.23956935591456
+bcc:0.193891796501763
+Blue:0.146296826916109
+Drcc:0.0287219427012326
