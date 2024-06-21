@@ -1,9 +1,13 @@
 # Code and documentation
 This repository contains the code and output for Rietze et al. (in prep.): Topography and pre-fire conditions shape the underestimated burn heterogeneity of Siberian tundra fires.
 
-[!WARNING] The necessary data is publicly available under [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.7886425-blue)](https://doi.org/10.5281/zenodo.7886425).
+> [!WARNING]
+> Update when officially done.
+ > The necessary data is publicly available under [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.7886425-blue)](https://doi.org/10.5281/zenodo.7886425).
 
-## [!WARNING] Repository structure:
+## Repository structure:
+> [!WARNING]
+> Update when officially done.
 Here is the structure of this repo, files have been excluded from this tree for readability.
 
 ```bash
@@ -55,7 +59,10 @@ Code development and maintenance: Nils Rietze ([nils.rietze@uzh.ch](nils.rietze@
 
 [to top](https://github.com/nrietze/SiberiaFires/main/README.md)
 
-## [!WARNING] Acknowledgements
+## Acknowledgements
+> [!WARNING]
+> Update when officially done.
+
 From the manuscript:
 *N.R. was supported through the TRISHNA Science and Electronics Contribution (T-SEC), an ESA PRODEX project (contract no. 4000133711).*
 
