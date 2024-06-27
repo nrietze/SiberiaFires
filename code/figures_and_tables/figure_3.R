@@ -148,7 +148,7 @@ p1 <- mod %>%
    mutate(`.variable` = gsub("zoi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-    stat_halfeye(.width = c(0.05,0.95),size = 0.5,fill = "#E8CEB6") +
+    stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#E8CEB6") +
     geom_vline(xintercept = 0, linewidth = 0.3) +
     scale_y_discrete(labels = mod_labs) +
     labs(x = "Coefficient estimate \n(scaled)",
@@ -159,7 +159,7 @@ p1 <- mod %>%
     theme(
       plot.subtitle = ggtext::element_markdown(size = font_size),
       axis.title.x = element_text(hjust = 0.5),
-      legend.position = "none") 
+      legend.position = "none")
 
 ### ii. component 2: COI ----
 p2 <- mod %>%
@@ -169,7 +169,7 @@ p2 <- mod %>%
    mutate(`.variable` = gsub("coi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 0.5,fill = "#BF96AB") +
+   stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#BF96AB") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)",
@@ -191,7 +191,7 @@ p3 <- mod %>%
    filter(!grepl("coi", `.variable`)) %>%          # remove conditional one inflation
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 0.5,fill = "#b5ccb9") +
+   stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#b5ccb9") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)", 
