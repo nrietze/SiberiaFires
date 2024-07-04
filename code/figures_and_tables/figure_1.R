@@ -59,28 +59,21 @@ GetBurnedArea <- function(aoi_name, product = "descals", return_all = TRUE){
     )
     wa <- ifel(wa == 'water',wa,NA)
   } else {
-    wa_ps <- rast(
-      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name)
-    )
-    
     wa <- rast(
       sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name)
     )
-    
-    wa <- resample(wa,wa_ps)
-    rm(wa_ps)
   }
   
   # load PlanetScope burned area
   ba <- rast(
     sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name)
-  ) %>% 
-    mask(wa,maskvalues = 2,updatevalue = NA) 
+  ) 
+  wa_3m <- resample(wa,ba)
+  ba <-  mask(ba,wa_3m,maskvalues = 2,updatevalue = NA) 
   
   # load comparison Landsat burned areas
   if (product == "descals"){
     fn_comp <- 'data/geodata/raster/burned_area/ba_descals_landsat_2020_utm_shifted.tif'
-    # fn_desc <- 'data/geodata/raster/burned_area/ba_descals_sentinel_2020_utm_shifted.tif'
     burn_val <- 30
     
   } else if (product == "GABAM"){
@@ -89,11 +82,12 @@ GetBurnedArea <- function(aoi_name, product = "descals", return_all = TRUE){
   }
   
   ba_comp <- rast(fn_comp) %>% 
-    crop(bp) %>% 
-    mask(fraction_burned,maskvalues = NA) %>% 
-    rename(class = 1) 
+    crop(bp) %>%
+    rename(class = 1)
   
-  ba_comp_bin <- ifel(ba_comp == burn_val, 1, 0) %>%  
+  ba_comp_bin <- ifel(ba_comp == burn_val, 1, 0) %>%  #convert values to 0 & 1
+    mask(ba_comp,maskvalues = NA, updatevalue = 0) %>% # convert NA values to 0 (unburned), important for GABAM
+    mask(crop(wa,bp),maskvalues = 2, updatevalue = NA) %>%  # mask out water areas
     as.factor()
   levels(ba_comp_bin) <- data.frame(id=0:1, class= c('unburned','burned'))
   
@@ -368,6 +362,7 @@ ggsave(p4,filename = 'figures/Fig_1d_GABAM_Kosukhino.png',
 # 4. Statistical tests ----
 tabl <- tibble()
 product <- "GABAM"
+# product <- "descals"
 
 for (aoi_name in aois$site){
   df_bf <- GetBurnedArea(aoi_name,product = product,return_all = FALSE) 
@@ -398,7 +393,9 @@ for (aoi_name in aois$site){
   stats <- df_bf %>% 
     group_by(group) %>% 
     dplyr::summarise(md = median(burned_fraction, na.omit = T),
-                     area = sum(burned_fraction * 900)/1e6) 
+                     ps_burned_area = sum(burned_fraction) * 900/1e6,
+                     ps_unburned_area = sum(1 - burned_fraction) * 900/1e6,
+                     ls_area = n() * 900/1e6)
     
   # Wilcoxon signed-rank test: are burned fractions in groups are different from one?
   wcx_greater <- df_bf %>% 
@@ -426,14 +423,17 @@ for (aoi_name in aois$site){
                tibble(site = aoi_name,
                       group = wcx_greater$group,
                       md = stats$md,
-                      area = stats$area,
+                      ls_area = stats$ls_area,
+                      ps_unburned_area  = stats$ps_unburned_area,
+                      ps_burned_area  = stats$ps_burned_area,
                       wcx_gt = wcx_greater$p.value,
                       wcx_lt = wcx_less$p.value) )
 }
 
-# Reformat table and format to nice looking table
+
+## a) make Table S8 ----
 tabl %>%
-  select(-c(md,area)) %>% 
+  select(-c(md,ls_area,ps_unburned_area,ps_burned_area)) %>% 
   mutate(wcx_gt = if_else(wcx_gt < 0.01,"Yes","No"),
          wcx_lt = if_else(wcx_lt < 0.01,"Yes","No")) %>%
   pivot_wider(names_from = group, values_from = c(wcx_gt, wcx_lt)) %>%
@@ -477,28 +477,32 @@ tabl %>%
   ) %>% 
   gtsave(filename =  sprintf("tables/Table2_%s.html",product))
 
-
+## b) make Table S9 ----
 tabl %>%
   select(-c(wcx_gt,wcx_lt)) %>% 
-  pivot_wider(names_from = group, values_from = c(md, area)) %>%
+  pivot_wider(names_from = group, values_from = c(md, ls_area,ps_unburned_area,ps_burned_area)) %>%
   mutate(site = str_replace_all(site, "(?<=[a-z])(?=[A-Z])", " ")) %>%
   gt() %>% 
   tab_spanner(
     label = "Landsat burned",
-    columns  = c(md_burned,area_burned),
+    columns  = c(md_burned,ls_area_burned, ps_unburned_area_burned,ps_burned_area_burned ),
     id = "bd"
   ) %>% 
   tab_spanner(
     label = "Landsat unburned",
-    columns  = c(md_unburned,area_unburned),
+    columns  = c(md_unburned,ls_area_unburned, ps_unburned_area_unburned,ps_burned_area_unburned ),
     id = "ubd"
   ) %>% 
   cols_label(
     site = "Site",
     md_burned = "Median",
     md_unburned = "Median",
-    area_burned = "Area",
-    area_unburned = "Area"
+    ls_area_burned = "LS8 burned area (km2)",
+    ps_unburned_area_burned = "PS unburned area (km2)",
+    ps_burned_area_burned = "PS burned area (km2)",
+    ls_area_unburned = "LS8 unburned area (km2)",
+    ps_unburned_area_unburned = "PS unburned area (km2)",
+    ps_burned_area_unburned = "PS burned area (km2)"
   ) %>% 
   fmt_number(decimals = 2) %>% 
   tab_style(

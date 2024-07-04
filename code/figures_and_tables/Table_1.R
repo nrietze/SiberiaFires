@@ -79,14 +79,14 @@ GetBurnedArea <- function(aoi_name,product = "descals"){
   }
   
   # get burned area in Landsat product
-  A_comp <- expanse(ifel(ba_comp_bin == "burned",TRUE,NA),
-                    unit="km",
-                    transform = FALSE)
+  A_comp <- ifel(ba_comp_bin == "burned",TRUE,NA) %>% 
+    mask(bp) %>% 
+    expanse(unit="km",transform = FALSE)
   
   # get burned area in PlanetScope product
-  A_PS <- expanse(ifel(ba == "burned",TRUE,NA),
-                  unit="km",
-                  transform = FALSE)
+  A_PS <- ifel(ba == "burned",TRUE,NA) %>% 
+    mask(bp) %>% 
+    expanse(unit="km",transform = FALSE)
   
   return(data.frame(site = aoi_name,A_comp = A_comp$area,A_PS = A_PS$area))
 }
