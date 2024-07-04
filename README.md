@@ -3,7 +3,7 @@ This repository contains the code and output for Rietze et al. (in prep.): Topog
 
 > [!WARNING]
 > Update when officially done.
- > The necessary data is publicly available under [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.7886425-blue)](https://doi.org/10.5281/zenodo.7886425).
+ > The necessary data is publicly available under [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.12650945-blue)](https://doi.org/10.5281/zenodo.12650945).
 
 ## Repository structure:
 > [!WARNING]
