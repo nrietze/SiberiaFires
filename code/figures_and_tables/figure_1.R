@@ -258,7 +258,7 @@ p3 <- ggplot() +
          plot.margin = unit(c(0,1,0,0), "cm"),
          panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
    labs(fill = NULL,
-        subtitle = "Binary burned area Landsat \n (30 m x 30 m)");p3
+        subtitle = "Burned area Landsat \n (30 m x 30 m)");p3
 
 ## Subfigure 4 - plot distributions of burned fraction per Landsat class ----
 df_bf_in_comp <- GetBurnedArea("Kosukhino",
@@ -361,8 +361,8 @@ ggsave(p4,filename = 'figures/Fig_1d_GABAM_Kosukhino.png',
 
 # 4. Statistical tests ----
 tabl <- tibble()
-product <- "GABAM"
-# product <- "descals"
+# product <- "GABAM"
+product <- "descals"
 
 for (aoi_name in aois$site){
   df_bf <- GetBurnedArea(aoi_name,product = product,return_all = FALSE) 
@@ -422,7 +422,7 @@ for (aoi_name in aois$site){
   tabl <- rbind(tabl,
                tibble(site = aoi_name,
                       group = wcx_greater$group,
-                      md = stats$md,
+                      md = stats$md * 100,
                       ls_area = stats$ls_area,
                       ps_unburned_area  = stats$ps_unburned_area,
                       ps_burned_area  = stats$ps_burned_area,
@@ -495,7 +495,7 @@ tabl %>%
   ) %>% 
   cols_label(
     site = "Site",
-    md_burned = "Median",
+    md_burned = "Median burned fraction (%)",
     md_unburned = "Median",
     ls_area_burned = "LS8 burned area (km2)",
     ps_unburned_area_burned = "PS unburned area (km2)",
@@ -504,7 +504,7 @@ tabl %>%
     ps_unburned_area_unburned = "PS unburned area (km2)",
     ps_burned_area_unburned = "PS burned area (km2)"
   ) %>% 
-  fmt_number(decimals = 2) %>% 
+  fmt_number(decimals = 1) %>% 
   tab_style(
     style = cell_text(v_align = "top", weight = 'bold'),
     locations = cells_column_labels()) %>% 

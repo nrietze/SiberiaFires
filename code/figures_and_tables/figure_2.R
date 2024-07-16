@@ -204,7 +204,7 @@ y_max <- max(res_df$counts, na.rm = T) * 1.1
 
 # prepare plotting parameters
 res_df <- mutate(res_df,
-                 inv_perc = 1 - cumsum(counts)/sum(counts) ,
+                 inv_perc = c(1, 1 - head(cumsum(counts)/sum(counts), -1)),
                  x_min = mids - (x_res / 2),
                  x_max = mids + (x_res / 2),
                  bar_lower = y_max * -0.2,
@@ -231,10 +231,24 @@ cat("% of unburned patches larger than Landsat
       excluding single and 3x3-pixel patches:",
       100 - ecdf_unburned_81(landsat_area_log10) *100)
 
+all_patch_areas %>% 
+  filter(site == 'Kosukhino') %>%
+  arrange(desc(area_m2)) %>%
+  mutate(
+    top_10 = row_number() <= 10,
+    sum_top_10 = sum(area_m2[top_10]),
+    sum_remaining = sum(area_m2[!top_10])
+  ) %>%
+  summarise(
+    sum_top_10 = first(sum_top_10)/1e6,
+    sum_remaining = first(sum_remaining)/1e6,
+    percent = sum_remaining / (sum_top_10 + sum_remaining) *100
+  )
+
 pct_landsat <- 100 - ecdf_unburned(landsat_area_log10)*100
 s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
 
-# plot x-axis log10, y-axis percentage
+# plot x-axis log10, y-axis inverse cumulative percentage
 (p2 <- ggplot(res_df, aes(fill = col, colour = col)) +
     # histogram bars
     geom_rect(aes(xmin = x_min, xmax = x_max,
@@ -272,7 +286,7 @@ s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
     breaks = log(as.integer(10^(1:7))),
     labels = c(10,100,1000,"1e4","1e5","1e6","1e7")
   ) +
-  labs(x = expression(Patch~Area~(m^2)), 
+  labs(x = expression(Unburned~patch~size~(m^2)), 
        y = "Inverse cumulative percentage",
        # subtitle = "b)"
        ) +
@@ -281,6 +295,54 @@ s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
         plot.margin = ggplot2::margin(1, 1, 1, 0.25, "cm"),
         plot.subtitle=element_text(face='bold',size = font_size),
         axis.title.y = element_text(hjust = 0.7))
+)
+
+### plot x-axis log10, y-axis counts -----
+(p2 <- ggplot(res_df, aes(fill = col, colour = col)) +
+    # histogram bars
+    geom_rect(aes(xmin = x_min, xmax = x_max,
+                  ymin = 0, ymax = counts),
+              colour = "#505050", size = 0.005) +
+    geom_rect(aes(xmin = x_min, xmax = x_max,
+                  ymin = 0,
+                  ymax = -.06 * max(counts)),
+              size = 0.005) +
+    # vertical line with text at 900m2
+    geom_vline(xintercept = log(900),color = "grey40",
+               linetype = "dashed", size = 2) +
+    annotate("text", x = log(1e5), y = .4* max(res_df$counts),
+             label = s,
+             size = 7, color = "grey40") +
+    geom_curve(aes(x = log(1e4), y = .35 * max(counts), 
+                   xend = log(900), yend = .03 * max(counts)),
+               arrow = arrow(length = unit(0.08, "inch")), linewidth = 1,
+               color = "grey40", curvature = -0.3) +
+    # black outline around colorramp
+    annotate("rect",
+             xmin = min(res$breaks),
+             xmax = max(res_df$x_max),
+             ymin = 0,
+             ymax = -.06 * max(res_df$counts),
+             fill = NA,
+             colour = "black",
+             size = 0.75) +
+    # plot styling
+    scale_fill_manual(values = colour_ramp) +
+    scale_colour_manual(values = colour_ramp) +
+    scale_x_continuous(
+      expand = c(0,0),
+      limits = c(min(res_df$x_min),max(res_df$x_max)),
+      breaks = log(as.integer(10^(1:7))),
+      labels = c(10,100,1000,"1e4","1e5","1e6","1e7")
+    ) +
+    labs(x = expression(Unburned~patch~size~(m^2)), 
+         y = "Counts",
+         # subtitle = "b)"
+    ) +
+    theme_cowplot(font_size) +
+    theme(legend.position = "none",
+          plot.margin = ggplot2::margin(1, 1, 1, 0.25, "cm"),
+          plot.subtitle=element_text(face='bold',size = font_size))
 )
 
 ## c) create plot_grid and export ----
@@ -309,12 +371,12 @@ bd <- c(22.6,11.3,0.9,23.8,3.5,8.5)
 
 # Get mean and median patch areas per site
 mean_area_m2_per_site <- all_patch_areas %>%
-  filter(area_m2 > 81) %>%
   group_by(class,site) %>%
   summarise(md = median(area_m2, na.rm = TRUE),
+            mdc = median(area_m2[area_m2 > 81], na.rm = TRUE),
             mu = mean(area_m2, na.rm = TRUE),
             area = sum(area_m2) / 1e6) %>% 
-  pivot_wider(names_from = class, values_from = c(md,mu, area)) %>% 
+  pivot_wider(names_from = class, values_from = c(md,mdc,mu, area)) %>% 
   mutate(ratio_ubd_bd = area_1  / area_2) %>% 
   pivot_longer(cols = c(-site, -ratio_ubd_bd),
                names_to = c(".value", "class"),
@@ -329,6 +391,7 @@ mean_area_m2_per_site %>%
   cols_label(
     site = "Site",
     md = html("Median area <br>m<sup>2</sup>"),
+    mdc = html("Conservative median area <br>m<sup>2</sup>"),
     mu = html("Mean area <br>m<sup>2</sup>"),
     area = html("Total unburned area <br>km<sup>2</sup>"),
     ratio_ubd_bd = html("Ratio <br> Unburned:Burned")
