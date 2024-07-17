@@ -38,38 +38,23 @@ GetBurnedArea <- function(aoi_name, product = "descals", return_all = TRUE){
   )
   
   if (aoi_name %in% c("Berelech","LargeScarCenter")){
-    aoi <- aois %>% filter(site == aoi_name)
-    poly_mask <- terra::intersect(poly_mask,aoi)
-    
     has_mask <- TRUE
-    
   } else{has_mask <- FALSE}
   
-  # load burned fractions
-  fraction_burned <- rast(
-    sprintf('data/geodata/raster/predictors/%s_predictors_30m.tif',aoi_name)
-  ) %>% 
-    select(burned_fraction) %>% 
-    crop(bp)
-  
   # load water mask
-  if (use_planet_wa){
-    wa <- rast(
-      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name)
+  wa <- rast(
+    sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name)
     )
-    wa <- ifel(wa == 'water',wa,NA)
-  } else {
-    wa <- rast(
-      sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name)
-    )
-  }
   
   # load PlanetScope burned area
   ba <- rast(
     sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name)
   ) 
   wa_3m <- resample(wa,ba)
-  ba <-  mask(ba,wa_3m,maskvalues = 2,updatevalue = NA) 
+  
+  # mask water areas in burned area map
+  ba <- mask(ba,wa_3m,maskvalues = 2,updatevalue = NA) %>% 
+    mask(bp)
   
   # load comparison Landsat burned areas
   if (product == "descals"){
@@ -88,8 +73,18 @@ GetBurnedArea <- function(aoi_name, product = "descals", return_all = TRUE){
   ba_comp_bin <- ifel(ba_comp == burn_val, 1, 0) %>%  #convert values to 0 & 1
     mask(ba_comp,maskvalues = NA, updatevalue = 0) %>% # convert NA values to 0 (unburned), important for GABAM
     mask(crop(wa,bp),maskvalues = 2, updatevalue = NA) %>%  # mask out water areas
+    mask(bp) %>% 
     as.factor()
   levels(ba_comp_bin) <- data.frame(id=0:1, class= c('unburned','burned'))
+  
+  # load burned fractions
+  fraction_burned <- rast(
+    sprintf('data/geodata/raster/predictors/%s_predictors_30m.tif',aoi_name)
+  ) %>% 
+    select(burned_fraction) %>% 
+    crop(bp) %>% 
+    mask(crop(wa,bp),maskvalues = 2, updatevalue = NA) %>% # mask out water areas
+    mask(bp)
   
   if (has_mask){
     ba_comp_bin <- ba_comp_bin %>% 
@@ -97,19 +92,20 @@ GetBurnedArea <- function(aoi_name, product = "descals", return_all = TRUE){
     
     ba <- ba %>% 
       mask(poly_mask,inverse = T)
+    
+    fraction_burned <- fraction_burned %>% 
+      mask(poly_mask,inverse = T)
   }
   
   # 2. Extract and format data ----
   df_bf_in_comp <- rbind(
     # extract burned fractions from Landsat 'burned' (Descals et al. 2022)
     comp_burned <- ifel(ba_comp_bin == 'burned',fraction_burned,NA) %>% 
-      mask(bp) %>% 
       as.data.frame() %>% 
       rename(burned_fraction = 1) %>%
       mutate(group = "burned"),
     # Extract burned fractions from Landsat 'unburned' (Descals et al. 2022)
     comp_unburned <- ifel(ba_comp_bin == 'unburned',fraction_burned,NA) %>% 
-      mask(bp) %>% 
       as.data.frame() %>% 
       rename(burned_fraction = 1) %>%
       mutate(group = "unburned")
@@ -365,26 +361,32 @@ tabl <- tibble()
 product <- "descals"
 
 for (aoi_name in aois$site){
-  df_bf <- GetBurnedArea(aoi_name,product = product,return_all = FALSE) 
+  L <- GetBurnedArea(aoi_name,product = product) 
   
-  (p4 <- df_bf %>% 
-      group_by(group) %>% 
-      sample_frac(size = .3) %>% 
-      ggplot(aes(x = group,y = burned_fraction,fill = group)) +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0),
-                       scale = "width",
-                       size = 0.2,alpha = 0.8) +
-      geom_point(aes(y = burned_fraction, color = group),
-                 position = position_jitter(width = 0.15), size = 1, alpha = 0.1) +
-      geom_boxplot(lwd = 0.3, width = .2,outlier.shape = NA, alpha = 0.6) +
-      labs(y = "Burned fraction \n", x = NULL) +
-      scale_y_continuous(labels = label_percent(),
-                         expand = c(0,0)) +
-      scale_x_discrete(labels = c('Burned', 'Unburned') ) +
-      scale_fill_manual(values = binary_colors) +
-      scale_color_manual(values = binary_colors) +
-      theme_cowplot(font_size) +
-      theme(legend.position = 'none'))
+  ba <- L[[1]]
+  fraction_burned <- L[[2]]
+  ba_comp_bin <- L[[3]]
+  df_bf <- L[[4]]
+  bp <- L[[5]]
+  
+  # (p4 <- df_bf %>% 
+  #     group_by(group) %>% 
+  #     sample_frac(size = .3) %>% 
+  #     ggplot(aes(x = group,y = burned_fraction,fill = group)) +
+  #     geom_flat_violin(position = position_nudge(x = 0.2, y = 0),
+  #                      scale = "width",
+  #                      size = 0.2,alpha = 0.8) +
+  #     geom_point(aes(y = burned_fraction, color = group),
+  #                position = position_jitter(width = 0.15), size = 1, alpha = 0.1) +
+  #     geom_boxplot(lwd = 0.3, width = .2,outlier.shape = NA, alpha = 0.6) +
+  #     labs(y = "Burned fraction \n", x = NULL) +
+  #     scale_y_continuous(labels = label_percent(),
+  #                        expand = c(0,0)) +
+  #     scale_x_discrete(labels = c('Burned', 'Unburned') ) +
+  #     scale_fill_manual(values = binary_colors) +
+  #     scale_color_manual(values = binary_colors) +
+  #     theme_cowplot(font_size) +
+  #     theme(legend.position = 'none'))
 
   # export to png
   # ggsave(p4,filename = sprintf('figures/Fig_1d_%s.png',aoi_name),
@@ -393,9 +395,9 @@ for (aoi_name in aois$site){
   stats <- df_bf %>% 
     group_by(group) %>% 
     dplyr::summarise(md = median(burned_fraction, na.omit = T),
-                     ps_burned_area = sum(burned_fraction) * 900/1e6,
-                     ps_unburned_area = sum(1 - burned_fraction) * 900/1e6,
-                     ls_area = n() * 900/1e6)
+                     ps_burned_area = sum(burned_fraction)* 900/1e6,
+                     ps_unburned_area = sum(1 - burned_fraction)* 900/1e6,
+                     ls_area = n() * 900 / 1e6)
     
   # Wilcoxon signed-rank test: are burned fractions in groups are different from one?
   wcx_greater <- df_bf %>% 
