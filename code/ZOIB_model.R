@@ -271,20 +271,23 @@ load_data <- function(aoi_name, path){
   csv_path <- paste0(path,aoi_name,"_predictors_",window_side_length,"m.csv")
   
   # Check if file exists
-  if (file.exists(csv_path)){
-    cat(sprintf('Data found for %s, loading data ... \n',aoi_name))
-    
-    data <- read.csv(csv_path)
-    
-    return(data)
-  } else{
-    cat('No data frame could be found for this site. Preparing data first... \n')
-    prepare_data(aoi_name,window_side_length)
-    
-    data <- read.csv(csv_path)
-    return(data)
-  }
- 
+  # if (file.exists(csv_path)){
+  #   cat(sprintf('Data found for %s, loading data ... \n',aoi_name))
+  #   
+  #   data <- read.csv(csv_path)
+  #   
+  #   return(data)
+  # } else{
+  #   cat('No data frame could be found for this site. Preparing data first... \n')
+  #   prepare_data(aoi_name,window_side_length)
+  #   
+  #   data <- read.csv(csv_path)
+  #   return(data)
+  # }
+  prepare_data(aoi_name,window_side_length)
+  
+  data <- read.csv(csv_path)
+  return(data)
 }
 
 # 3. Apply model ----

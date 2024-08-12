@@ -131,7 +131,11 @@ rm(wa_ps)
 
 xtext <- 544500
 ytext <- 7871400
-textsize <- 8
+textsize <- 7
+  
+drone_lat <- 7867419
+drone_lon <- 545492
+drone_angle <- 114
   
 p1 <- ggplot() +
     # plot unburned areas
@@ -167,18 +171,22 @@ p1 <- ggplot() +
     geom_text(aes(x = xtext + 40, y = ytext + 100,
                   label = 'N',fontface = 'bold'),
               size = textsize, colour = 'gray20') +
-    geom_text(aes(x = xtext + 60, y = ytext + 550,
+    geom_text(aes(x = xtext + 65, y = ytext + 560,
                   label = '$', angle = 90,
                   family = 'ESRI arrowhead',
                   fontface = 'bold'),
               size = textsize, colour = 'gray20') +
+    # drone marker
+    geom_text(aes(x = drone_lon, y = drone_lat,
+                label = 'D', angle = drone_angle,
+                family = 'ESRI arrowhead'),
+            size = textsize, colour = 'gray20') +
     # water text
     geom_text(aes(x = xtext - 2000, y = ytext - 900,
                   label = 'w a t e r',fontface = 'bold'),
-              size = textsize, angle = 20,
+              size = textsize - .2, angle = 20,
               colour = 'steelblue4') +
     # plot styling
-    # ggtitle("",subtitle = expression(bold("a)")) ) +
     scale_x_continuous(expand=c(0,0)) +
     scale_y_continuous(expand=c(0,0)) +
     theme_map(font_size) +
@@ -247,6 +255,7 @@ all_patch_areas %>%
 
 pct_landsat <- 100 - ecdf_unburned(landsat_area_log10)*100
 s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
+s <- sprintf("%.1f%% of patches \n are larger than 900 m²",round(pct_landsat,1))
 
 # plot x-axis log10, y-axis inverse cumulative percentage
 (p2 <- ggplot(res_df, aes(fill = col, colour = col)) +
@@ -313,7 +322,7 @@ s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
     annotate("text", x = log(1e5), y = .4* max(res_df$counts),
              label = s,
              size = 7, color = "grey40") +
-    geom_curve(aes(x = log(1e4), y = .35 * max(counts), 
+    geom_curve(aes(x = log(1e4), y = .3 * max(counts), 
                    xend = log(900), yend = .03 * max(counts)),
                arrow = arrow(length = unit(0.08, "inch")), linewidth = 1,
                color = "grey40", curvature = -0.3) +
@@ -346,15 +355,33 @@ s <- bquote(.(round(pct_landsat,1))~"% of patches are larger than 900"~m^2)
 )
 
 ## c) create plot_grid and export ----
-pg <- cowplot::plot_grid(p1,p2,
+top_row <- cowplot::plot_grid(p1,p2,
                          ncol = 2,
                          labels = c("a)","b)"),label_size = font_size,
                          align = 'h', axis = 'tb',
                          rel_widths = c(1.5,1.8))
 
-ggsave2(pg, filename ='figures/Figure_2.png',
+p_pic <- ggdraw() +
+  draw_image("figures/Figure_2c.png", width = 1) +
+  theme(plot.margin = unit(c(0,0,0,0), "cm"))
+
+pg <- cowplot::plot_grid(top_row,p_pic,
+                         labels = c('','c)'),label_size = font_size,
+                         ncol = 1)  
+
+pg1 <- pg +
+  geom_text(aes(x = 0.03, y = 0.6,
+                label = 'D', angle = drone_angle,
+                family = 'ESRI arrowhead'),
+            size = textsize, colour = 'gray20') +
+  geom_text(aes(x = 0.05, y = 0.6,hjust = "left",
+                label = 'Drone position (looking southeast)',fontface = 'bold'),
+            size = textsize, colour = 'gray20')
+
+
+ggsave2(pg1, filename ='figures/Figure_2_nn.png',
         device = png, type = "cairo",
-        bg = 'white',width = 18, height = 9)
+        bg = 'white',width = 12, height = 16)
 
 # export individual figures
 ggsave(p1,filename ='figures/map_kosukh_patch_areas.png',

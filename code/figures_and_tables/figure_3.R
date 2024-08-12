@@ -131,11 +131,26 @@ mod_labs <-c(b_elevation = 'Elevation',
              b_northness = 'Northness',
              b_eastness = 'Eastness',
              b_tpi_500 = expression(Landform~(TPI[500~m])),
+             # b_LST = expression(atop(Land~surface~cooling,
+             #                         (LST[Landsat])) ),
+             # b_NDVI = expression(atop(Greenness,
+             #                          (NDVI[Landsat])) ),
+             # b_NDVI_sd = expression(atop(Greenness~heterogeneity,
+             #                             (sigma~NDVI[Planet])) )
              b_LST = expression(Land~surface~cooling~(LST[Landsat])),
              b_NDVI = expression(Greenness~(NDVI[Landsat])), 
              b_NDVI_sd = expression(Greenness~heterogeneity~(sigma~NDVI[Planet]))
 )
 
+# as HTML:
+mod_labs <-c(b_elevation = 'Elevation',
+             b_slope = 'Slope',
+             b_northness = 'Northness',
+             b_eastness = 'Eastness',
+             b_tpi_500 = "Landform (<i>TPI<sub>500 m</sub></i>)",
+             b_LST = "Land surface cooling<br>(<i>LST<sub>Landsat</sub></i>)",
+             b_NDVI = "Greenness<br>(<i>NDVI<sub>Landsat</sub></i>)", 
+             b_NDVI_sd = "Greenness heterogeneity<br>(<i>&sigma; NDVI<sub>Planet</sub></i>)")
 # Plot the posterior estimates, more info here: 
 # https://cran.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html
 font_size <- 22
@@ -148,7 +163,7 @@ p1 <- mod %>%
    mutate(`.variable` = gsub("zoi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-    stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#E8CEB6") +
+    stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#E8CEB6") +
     geom_vline(xintercept = 0, linewidth = 0.3) +
     scale_y_discrete(labels = mod_labs) +
     labs(x = "Coefficient estimate \n(scaled)",
@@ -156,10 +171,11 @@ p1 <- mod %>%
          subtitle = "<span style='color: #E8CEB6'>**a) Comp. 1: extreme or <br>
          intermediate fractions?**</span>") +
    theme_minimal_hgrid(font_size) +
-    theme(
-      plot.subtitle = ggtext::element_markdown(size = font_size),
-      axis.title.x = element_text(hjust = 0.5),
-      legend.position = "none")
+   theme(
+     axis.text.y.left = ggtext::element_markdown(hjust = 1),
+     plot.subtitle = ggtext::element_markdown(size = font_size),
+     axis.title.x = element_text(hjust = 0.5),
+     legend.position = "none")
 
 ### ii. component 2: COI ----
 p2 <- mod %>%
@@ -169,7 +185,7 @@ p2 <- mod %>%
    mutate(`.variable` = gsub("coi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#BF96AB") +
+   stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#BF96AB") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)",
@@ -178,6 +194,7 @@ p2 <- mod %>%
         full burned fraction**</span>") +
    theme_minimal_hgrid(font_size) +
    theme(
+     axis.text.y.left = ggtext::element_markdown(hjust = 1),
      axis.title.x = element_text(hjust = 0.5),
      plot.subtitle = ggtext::element_markdown(size = font_size),
      legend.position = "none") 
@@ -191,7 +208,7 @@ p3 <- mod %>%
    filter(!grepl("coi", `.variable`)) %>%          # remove conditional one inflation
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 2,fill = "#b5ccb9") +
+   stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#b5ccb9") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)", 
@@ -200,8 +217,10 @@ p3 <- mod %>%
         intermediate fractions**</span>") +
    theme_minimal_hgrid(font_size) +
    theme(
+     axis.text.y.left = ggtext::element_markdown(hjust = 1),
      axis.line.y = element_line(colour = 'gray'),
-     plot.subtitle = ggtext::element_markdown(size = font_size),
+     plot.subtitle = ggtext::element_markdown(size = font_size,
+                                              vjust = 5),
      axis.title.x = element_text(hjust = 0.5),
      legend.position = "none") 
 
@@ -226,7 +245,7 @@ pg <- cowplot::plot_grid(ggdraw(p1) +
                    rel_widths = c(1.6, .8, .8),
                    align = 'h', axis = 'tb')
 
-ggsave2(pg, filename = 'figures/Figure_3.png',
+ggsave2(pg, filename = 'figures/Figure_3_nn.png',
         bg = 'white',width = 18, height = 8)
 
 ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),

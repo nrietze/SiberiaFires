@@ -37,7 +37,7 @@ if (predict_all_aois){
 }
 
 ##... training polygons----
-training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area.shp') %>% 
+training_polygons <- vect('./data/geodata/feature_layers/training_polygons/training_polygons_burn_area_same.shp') %>% 
   project('EPSG:32655')
 
 ##... polygon_masks----

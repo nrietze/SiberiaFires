@@ -274,7 +274,8 @@ p4 <- ggplot(data = df_bf_in_comp,
   labs(y = NULL, x = NULL) +
   scale_y_continuous(labels = label_percent(),
                      expand = c(0,0)) +
-  scale_x_discrete(labels = c('Burned', 'Unburned') ) +
+  scale_x_discrete(labels = c('Landsat \n Burned',
+                              'Landsat \n Unburned') ) +
   scale_fill_manual(values = binary_colors) +
   scale_color_manual(values = binary_colors) +
   theme_cowplot(font_size) + 
@@ -433,7 +434,7 @@ for (aoi_name in aois$site){
 }
 
 
-## a) make Table S8 ----
+## a) make Table S6 & 7 ----
 tabl %>%
   select(-c(md,ls_area,ps_unburned_area,ps_burned_area)) %>% 
   mutate(wcx_gt = if_else(wcx_gt < 0.01,"Yes","No"),
@@ -479,7 +480,7 @@ tabl %>%
   ) %>% 
   gtsave(filename =  sprintf("tables/Table2_%s.html",product))
 
-## b) make Table S9 ----
+## b) make Table S8 & 9 ----
 tabl %>%
   select(-c(wcx_gt,wcx_lt)) %>% 
   pivot_wider(names_from = group, values_from = c(md, ls_area,ps_unburned_area,ps_burned_area)) %>%
