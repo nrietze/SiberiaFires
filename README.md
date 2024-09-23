@@ -1,5 +1,5 @@
 # Code and documentation
-This repository contains the code and output for Rietze et al. (in prep.): Topography and pre-fire conditions shape the underestimated burn heterogeneity of Siberian tundra fires.
+This repository contains the code and output for Rietze et al. (in prep.): Pre-fire Vegetation Conditions and Topography Shape the Finely Patterned Burn Mosaics of Siberian Tundra Fire Scars.
 
 > [!WARNING]
 > Update when officially done.
