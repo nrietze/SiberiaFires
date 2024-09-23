@@ -74,7 +74,7 @@ From the manuscript:
 ## Citation
 When citing elements in this repository, please cite as:
 
-Rietze, N., Assmann, J. J., Heim, R., Troeva, E., Schaepman-Strub, G. (in prep.). Topography and pre-fire conditions shape the underestimated burn heterogeneity of Siberian tundra fires. 
+Rietze, N., Assmann, J. J., Heim, R., Troeva, E., Schaepman-Strub, G. (in prep.). Pre-fire Vegetation Conditions and Topography Shape the Finely Patterned Burn Mosaics of Siberian Tundra Fire Scars. 
 
 [to top](https://github.com/nrietze/SiberiaFires/main/README.md)
 
