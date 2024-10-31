@@ -25,7 +25,13 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
 
 # Provide a part of the AOI name for processing
 if (plot_all_aois){
-  aoi_names <- aois$site
+  aoi_names <- c("Berelech",
+                 "LargeScarCenter",
+                 "LargeScarControl",
+                 "Libenchik",
+                 "Kosukhino",
+                 "DrainedThawlake"
+  )
 } else {
   aoi_names <- c('LargeScarCenter')
 }
@@ -33,26 +39,36 @@ if (plot_all_aois){
 get_patch_area <- function(aois,aoi_name){
   
   # Get current AOI
-  aoi <- aois[aois$site == aoi_name]
+  aoi_names_new <- c("Berelech" = "Berelech",
+                     "LargeScarCenter" = "Lapcha",
+                     "LargeScarControl" = "Keremesit",
+                     "Libenchik" = "Sala",
+                     "Kosukhino" = "Kosukhino",
+                     "DrainedThawlake" = "Ebelyakh"
+  )
   
-  cat(sprintf('Gathering patch areas for %s ... \n',aoi$site) )
+  aoi_name_new <- aoi_names_new[[aoi_name]]
+  aoi_name_old <- aoi_name
+  aoi <- aois[aois$site == aoi_name_new]
+  
+  cat(sprintf('Gathering patch areas for %s ... \n',aoi_name_new) )
   
   # Load burned area
-  ba_path <- sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name)
+  ba_path <- sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name_old)
   ba <- rast(ba_path)
   
   if (use_planet_wa){
     wa <- rast(
-      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name)
+      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name_old)
     )
     wa <- ifel(wa == 'water',wa,NA)
   } else {
     wa_ps <- rast(
-      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name)
+      sprintf('data/geodata/raster/water_area/planet/%s_water_area_top5TD.tif',aoi_name_old)
     )
     
     wa <- rast(
-      sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name)
+      sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name_old)
     )
     
     wa <- resample(wa,wa_ps)
@@ -60,7 +76,7 @@ get_patch_area <- function(aois,aoi_name){
   }
   
   # Load burn perimeter
-  bp <- vect(sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',aoi$site) ) %>%
+  bp <- vect(sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',aoi_name_old) ) %>%
     crop(aoi)
   
   # Mask out water pixels
@@ -69,7 +85,7 @@ get_patch_area <- function(aois,aoi_name){
     mask(bp,updatevalue = NA)
   
   # Load invalid data masks
-  if (aoi$site %in% c('Berelech','LargeScarCenter')){
+  if (aoi_name_old %in% c('Berelech','LargeScarCenter')){
     poly_mask <- vect('data/geodata/feature_layers/planet_masks.shp') %>% 
       terra::intersect(aoi)
     
@@ -84,7 +100,7 @@ get_patch_area <- function(aois,aoi_name){
   # Convert to square metres
   patch_area$area_m2 <- patch_area$value * 1e4
   
-  patch_area$site <- aoi_name
+  patch_area$site <- aoi_name_new
   
   return(list(patch_area = patch_area, ba = ba))
 }
@@ -94,15 +110,25 @@ all_patch_areas <- list()
 all_ba_objects <- list()
 
 # Loop over AOIs
+aoi_names_new <- c("Berelech" = "Berelech",
+                   "LargeScarCenter" = "Lapcha",
+                   "LargeScarControl" = "Keremesit",
+                   "Libenchik" = "Sala",
+                   "Kosukhino" = "Kosukhino",
+                   "DrainedThawlake" = "Ebelyakh"
+)
+
 for (aoi_name in aoi_names) {
   result <- get_patch_area(aois = aois, aoi_name = aoi_name)
-  all_patch_areas[[aoi_name]] <- result$patch_area
-  all_ba_objects[[aoi_name]] <- result$ba
+  
+  aoi_name_new <- aoi_names_new[[aoi_name]]
+  all_patch_areas[[aoi_name_new]] <- result$patch_area
+  all_ba_objects[[aoi_name_new]] <- result$ba
 }
 
 # Combine patch areas into one dataframe if needed
 all_patch_areas <- do.call(rbind, all_patch_areas) %>% 
-  mutate(site = factor(site,levels = aoi_names))
+  mutate(site = factor(site,levels = aoi_names_new))
 
 # 2. Plot patch area proportions ----
 class_to_plot <- 1 # ( 1 = unburned, 2 = burned)
@@ -229,7 +255,7 @@ ecdf_unburned <- all_patch_areas %>%
   log10() %>%
   ecdf()
 
-# get % if we exclude unburned patches <= 81 m2
+# get % if we exclude unburned patches < 81 m2
 ecdf_unburned_81 <- all_patch_areas %>%
   filter(class == 1 & site  == 'Kosukhino' & area_m2 > 81) %>%
   pull(area_m2) %>%
@@ -444,7 +470,7 @@ mean_area_m2_per_site %>%
     trans='log10',
     limits = c(.9,1e5),
     labels = label_number()) +
-  labs(x = expression(Patch~Area~(m^2)), y = "Frequency") + 
+  labs(x = expression(Unburned~patch~size~(m^2)), y = "Frequency") + 
   facet_wrap(~site,ncol = 3) +
   theme_cowplot() + 
   theme(legend.position = 'none') )
@@ -479,12 +505,12 @@ mean_area_m2_per_site %>%
     stat_ecdf(aes(y = after_stat(y*100)),
               geom = "line",
               pad = FALSE, linewidth = 1) +
-    scale_x_continuous(expand = c(1e-2, 0),trans='log10',
+    scale_x_continuous(expand = c(1e-2, 0.25),trans='log10',
                        limits = c(8,1e5),
                        labels = label_number()) +
     # scale_color_manual(values = site_colors) +
     scale_color_viridis_d(option = "inferno", end = .8) +
-    labs(x = expression(Patch~area~(m^2)),
+    labs(x = expression(Unburned~patch~size~(m^2)),
          y = "Cumulative Percentage (%)",color = 'Site') +
     theme_cowplot() +
     theme(
@@ -500,7 +526,7 @@ mean_area_m2_per_site %>%
                           nrow = 2,
                           align = 'h', axis = 'tb',
                           rel_heights = c(1.5,1.8)) )
-ggsave2(pgs, filename = "figures/Figure_S1.png",
+ggsave2(pgs, filename = "figures/Figure_S5.png",
         bg = "white",width = 8,height = 14)
 
 # export individual plots

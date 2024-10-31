@@ -19,7 +19,13 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
 
 # Provide a part of the AOI name for processing
 if (model_all_aois){
-  aoi_names <- aois$site
+  aoi_names <- c("Berelech",
+                 "LargeScarCenter",
+                 "LargeScarControl",
+                 "Libenchik",
+                 "Kosukhino",
+                 "DrainedThawlake"
+                 )
 } else {
   aoi_names <- c('LargeScarCenter')
 }
@@ -27,13 +33,24 @@ if (model_all_aois){
 # 2. Prepare data ----
 prepare_data <- function(aoi_name, window_side_length){
   
-  ## Get current AOI outline ----
-  aoi <- aois[aois$site == aoi_name]
+  aoi_names_new <- c("Berelech" = "Berelech",
+                     "LargeScarCenter" = "Lapcha",
+                     "LargeScarControl" = "Keremesit",
+                     "Libenchik" = "Sala",
+                     "Kosukhino" = "Kosukhino",
+                     "DrainedThawlake" = "Ebelyakh"
+                     )
   
-  cat(sprintf('Preparing model data for %s ... \n',aoi$site) )
+  ## Get current AOI outline ----
+  aoi_name_new <- aoi_names_new[[aoi_name]]
+  aoi_name_old <- aoi_name
+  aoi <- aois[aois$site == aoi_name_new]
+  
+  cat(sprintf('Preparing model data for %s ... \n old name: %s \n',
+              aoi_name_new,aoi_name_old) )
     
   # Get processing mask in current AOI if it's AOI 4 or 5
-  if (aoi$site %in% c("Berelech","LargeScarCenter")){
+  if (aoi_name_old %in% c("Berelech","LargeScarCenter")){
     poly_mask <- vect('data/geodata/feature_layers/planet_masks.shp') %>% 
       terra::intersect(aoi)
     
@@ -42,7 +59,10 @@ prepare_data <- function(aoi_name, window_side_length){
   } else{has_mask <- FALSE}
   
   # Load burn perimeter
-  bp <- vect(sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',aoi$site) ) %>%
+  cat("Loading burn perimeter ... \n")
+  bp_path <- sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',
+          aoi_name_old) 
+  bp <- vect(bp_path) %>%
     crop(aoi)
 
   ## Load Landsat data ----
@@ -55,7 +75,7 @@ prepare_data <- function(aoi_name, window_side_length){
   lst_scale_factor <- 0.00341802 	
   lst_offset <- 149 - 273.15
   
-  if (aoi$site %in% c("LargeScarControl","LargeScarCenter","Libenchik")){
+  if (aoi_name_old %in% c("LargeScarControl","LargeScarCenter","Libenchik")){
     qa <- rast(paste0(ls_path,'LC08_L2SP_116010_20200615_20200824_02_T1_QA_PIXEL.TIF')) %>% 
       crop(aoi)
     
@@ -96,7 +116,7 @@ prepare_data <- function(aoi_name, window_side_length){
   msp_offset <- -0.2
   
   # Level 2
-  if (aoi$site %in% c("LargeScarControl","LargeScarCenter")){
+  if (aoi_name_old %in% c("LargeScarControl","LargeScarCenter")){
     qa <- rast(paste0(ls_path,'LC08_L2SP_116010_20200615_20200824_02_T1_QA_PIXEL.TIF')) %>% 
       crop(aoi)
     red <- rast(paste0(ls_path,'LC08_L2SP_116010_20200615_20200824_02_T1_SR_B4.TIF')) %>% 
@@ -129,12 +149,19 @@ prepare_data <- function(aoi_name, window_side_length){
   
   dem_files <- list.files(dem_path,pattern = 'aoi.*_dem_.*utm\\.tif$',full.names = T)
   
-  raster_index <- grep(paste0("aoi_", aoi$site, "_"), dem_files)
+  raster_index <- grep(paste0("aoi_", aoi_name_old, "_"), dem_files)
   
   dem_og <- rast(dem_files[raster_index]) %>% crop(aoi)
   
   dem <- resample(dem_og,raster_grid_template, method = 'cubicspline')
   names(dem) <- 'elevation'
+  
+  # export resampled DEM
+  fname_dem_out <- sub("\\.tif$", "_30m.tif", dem_files[raster_index])
+  writeRaster(dem,
+              filename = fname_dem_out,
+              overwrite = T
+  )
   
   ### Slope  ----
   slope <- terrain(dem_og,'slope') %>% 
@@ -151,12 +178,10 @@ prepare_data <- function(aoi_name, window_side_length){
   names(eastness) <- 'eastness'
   
   ### TPI ----
-  tpi_files <- list.files(dem_path,pattern = 'aoi.*_tpi_.*\\.tif$',full.names = T)
-  raster_index <- grep(paste0("aoi_", aoi$site, "_"), tpi_files)
-  
-  tpi_500 <- rast(tpi_files[raster_index]) %>% 
-    crop(aoi) %>% 
-    resample(.,raster_grid_template,method = 'cubicspline')
+  # tpi_files <- list.files(dem_path,pattern = 'aoi.*_tpi_.*\\.tif$',full.names = T)
+  tpi_files <- list.files(dem_path,pattern = 'aoi.*_tpi_v3.*\\.tif$',full.names = T)
+  raster_index <- grep(paste0("aoi_", aoi_name_old, "_"), tpi_files)
+  tpi_500 <- rast(tpi_files[raster_index]) 
   names(tpi_500) <- 'tpi_500'
   
   ## PlanetScope data ----
@@ -164,7 +189,7 @@ prepare_data <- function(aoi_name, window_side_length){
   
   ### NDVI heterogeneity ----
   planet_path <- list.files('C:/data/8_planet/2019/cropped/',
-                            pattern = paste0(aoi$site,'.*composite\\.tif$'),
+                            pattern = paste0(aoi_name_old,'.*composite\\.tif$'),
                             full.names = TRUE)
   
   planet_msp <- rast(planet_path) %>% 
@@ -185,7 +210,7 @@ prepare_data <- function(aoi_name, window_side_length){
   
   ### Burned area  ----
   ba_path <- list.files('data/geodata/raster/burned_area/planet/',
-                        pattern = paste0(aoi$site,'.*burned_area_top5TD\\.tif$'),
+                        pattern = paste0(aoi_name_old,'.*burned_area_top5TD\\.tif$'),
                         full.names = TRUE)
   # calculate burned fraction
   ba <- rast(ba_path) %>% 
@@ -202,14 +227,14 @@ prepare_data <- function(aoi_name, window_side_length){
   ### water mask ----
   if(use_planet_wa){
     wa_path <- list.files('data/geodata/raster/water_area/planet/',
-                        pattern = paste0(aoi$site,'.*water_area_top5TD\\.tif$'),
+                        pattern = paste0(aoi_name_old,'.*water_area_top5TD\\.tif$'),
                         full.names = TRUE)
     wa <- rast(wa_path) %>% 
       crop(aoi) %>% 
       resample(raster_grid_template,'mode')
     
     writeRaster(wa,
-                filename = paste0("data/geodata/raster/water_area/",aoi$site,
+                filename = paste0("data/geodata/raster/water_area/",aoi_name_old,
                                   "_resampledPS_mask.tif"),
                 overwrite = T
     )
@@ -218,7 +243,7 @@ prepare_data <- function(aoi_name, window_side_length){
     plot(wa)
     
     writeRaster(wa,
-                filename = paste0("data/geodata/raster/water_area/",aoi$site,
+                filename = paste0("data/geodata/raster/water_area/",aoi_name_old,
                                   "_Landsat_mask.tif"),
                 overwrite = T
     )
@@ -232,7 +257,7 @@ prepare_data <- function(aoi_name, window_side_length){
   
   cat("Writing raster of all predictors ...\n")
   writeRaster(predictors,
-              filename = paste0("data/geodata/raster/predictors/",aoi$site,
+              filename = paste0("data/geodata/raster/predictors/",aoi_name_new,
                                 "_predictors_",window_side_length,"m.tif"),
               overwrite = T
   )
@@ -253,54 +278,68 @@ prepare_data <- function(aoi_name, window_side_length){
   # Extract data at random points 
   data <- terra::extract(predictors, random_points,ID = FALSE, xy = TRUE) %>% 
     drop_na() 
-  data$site <- aoi$site
+  data$site <- aoi_name_new
   
   cat('Exporting data to csv... \n')
   
   # Export dataframe to csv
-  write.csv(data, file = paste0("tables/predictors/",aoi$site,
+  write.csv(data, file = paste0("tables/predictors/",aoi_name_new,
                                 "_predictors_",window_side_length,"m.csv"))
   
   cat('done. \n')
   
-  return(NULL)
+  return(data)
 }
 
 # call function
 load_data <- function(aoi_name, path){
-  csv_path <- paste0(path,aoi_name,"_predictors_",window_side_length,"m.csv")
+  aoi_names_new <- c("Berelech" = "Berelech",
+                     "LargeScarCenter" = "Lapcha",
+                     "LargeScarControl" = "Keremesit",
+                     "Libenchik" = "Sala",
+                     "Kosukhino" = "Kosukhino",
+                     "DrainedThawlake" = "Ebelyakh"
+  )
+  
+  aoi_name_new <- aoi_names_new[[aoi_name]]
+  aoi_name_old <- aoi_name
+  
+  csv_path <- paste0(path,aoi_name_new,"_predictors_",window_side_length,"m.csv")
   
   # Check if file exists
-  # if (file.exists(csv_path)){
-  #   cat(sprintf('Data found for %s, loading data ... \n',aoi_name))
-  #   
-  #   data <- read.csv(csv_path)
-  #   
-  #   return(data)
-  # } else{
-  #   cat('No data frame could be found for this site. Preparing data first... \n')
-  #   prepare_data(aoi_name,window_side_length)
-  #   
-  #   data <- read.csv(csv_path)
-  #   return(data)
-  # }
-  prepare_data(aoi_name,window_side_length)
-  
-  data <- read.csv(csv_path)
-  return(data)
+  if (file.exists(csv_path)){
+    cat(sprintf('Data found for %s, loading data ... \n',aoi_name_new))
+
+    data <- read.csv(csv_path)
+    
+    # if (grep("elevation.1",colnames(data))){
+    #   data <- rename(data, c("tpi_500" = "elevation.1"))
+    # }
+
+    return(data)
+  } else{
+    cat('No data frame could be found for this site. Preparing data first... \n')
+    data <- prepare_data(aoi_name,window_side_length)
+
+    return(data)
+  }
+  # prepare_data(aoi_name,window_side_length)
+  # 
+  # data <- read.csv(csv_path)
+  # return(data)
 }
 
 # 3. Apply model ----
 use_all_points <- TRUE
 
 if (use_all_points){
-  # Merge all dataframes together
+  # Merge all data frames together
   model_data <- do.call(rbind,
                         lapply(aoi_names, FUN = load_data, path = "tables/predictors/")) %>% 
     dplyr::select(-X)
   suffix <- ''
 } else {
-  # load model data with 400 m distance contstraint
+  # load model data with 400 m distance constraint
   model_data <- read.csv("tables/predictors/model_data_400m.csv")
   suffix <- 'thinned_data_'
 }
@@ -316,9 +355,10 @@ print(summary(model_data_scaled))
 model_data_scaled$site <- as.factor(model_data_scaled$site)
 
 # Define predictor variables for the model
-mod_vars <- c('elevation','slope','northness','eastness','tpi_500', 
+mod_vars <- c('elevation','slope','northness','eastness',
               'LST','NDVI_sd','NDVI')
 
+# Define model formula for all components of the ZOIB mdoel
 mod_formula <- formula(paste('burned_fraction ~ (1| site) +',paste(mod_vars, collapse = '+')))
 phi_formula <- formula(paste('phi ~ (1| site) +',paste(mod_vars, collapse = '+')))
 zoi_formula <- formula(paste('zoi ~ (1| site) +',paste(mod_vars, collapse = '+')))
@@ -326,7 +366,12 @@ coi_formula <- formula(paste('coi ~ (1| site) +',paste(mod_vars, collapse = '+')
 
 # Check for multicollinearity using a linear model
 lm_mod <- lme4::lmer(mod_formula, data = model_data_scaled)
-performance::multicollinearity(lm_mod)
+mc_result <- performance::multicollinearity(lm_mod)
+output <- capture.output(print(mc_result))
+
+writeLines(output,
+           sprintf("tables/multicollinearity_check_%s.txt",today())
+           )
 
 ## b) Run zero-one inflated beta regression ----
 n_iter <- 10000

@@ -23,8 +23,8 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
-# zoib_model <- readRDS("zoi_beta_model_2024-03-20.rds") # zoi, phi & coi are identities
 mod <- readRDS("zoi_beta_model_2024-03-28.rds") # zoi, phi & coi are fitted with predictors
+# mod <- readRDS("zoi_beta_model_2024-08-26.rds") # zoi, phi & coi are fitted with predictors
 summary(mod)
 model_data_scaled <- mod$data
 
@@ -153,7 +153,8 @@ mod_labs <-c(b_elevation = 'Elevation',
              b_NDVI_sd = "Greenness heterogeneity<br>(<i>&sigma; NDVI<sub>Planet</sub></i>)")
 # Plot the posterior estimates, more info here: 
 # https://cran.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html
-font_size <- 22
+font_size <- 28
+subtitle_vmargin <- 100
 
 ### i.component 1: ZOI ----
 p1 <- mod %>%
@@ -163,19 +164,21 @@ p1 <- mod %>%
    mutate(`.variable` = gsub("zoi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-    stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#E8CEB6") +
+    stat_halfeye(.width = c(0.95),size = 4,fill = "#E8CEB6") +
     geom_vline(xintercept = 0, linewidth = 0.3) +
     scale_y_discrete(labels = mod_labs) +
     labs(x = "Coefficient estimate \n(scaled)",
          y = "",
-         subtitle = "<span style='color: #E8CEB6'>**a) Comp. 1: extreme or <br>
-         intermediate fractions?**</span>") +
+         subtitle = "<span style='color: #E8CEB6'>**a) Component 1: <br> 
+         extreme or intermediate <br>
+         fractions?**</span>") +
    theme_minimal_hgrid(font_size) +
    theme(
      axis.text.y.left = ggtext::element_markdown(hjust = 1),
-     plot.subtitle = ggtext::element_markdown(size = font_size),
+     plot.subtitle = ggtext::element_markdown(size = font_size,
+                                              margin = ggplot2::margin(0,0,subtitle_vmargin,0)),
      axis.title.x = element_text(hjust = 0.5),
-     legend.position = "none")
+     legend.position = "none");p1
 
 ### ii. component 2: COI ----
 p2 <- mod %>%
@@ -185,18 +188,19 @@ p2 <- mod %>%
    mutate(`.variable` = gsub("coi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#BF96AB") +
+   stat_halfeye(.width = c(0.95),size = 4,fill = "#BF96AB") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)",
         y = "",
-        subtitle = "<span style='color: #BF96AB'>**b) Comp. 2: effect on <br>
-        full burned fraction**</span>") +
+        subtitle = "<span style='color: #BF96AB'>**b) Component 2: <br>
+        effect on full <br>
+        burned fraction**</span>") +
    theme_minimal_hgrid(font_size) +
    theme(
-     axis.text.y.left = ggtext::element_markdown(hjust = 1),
      axis.title.x = element_text(hjust = 0.5),
-     plot.subtitle = ggtext::element_markdown(size = font_size),
+     plot.subtitle = ggtext::element_markdown(size = font_size,
+                                              margin = ggplot2::margin(0,0,subtitle_vmargin,0)),
      legend.position = "none") 
    
 ### iii. component 3: MU ----
@@ -208,50 +212,141 @@ p3 <- mod %>%
    filter(!grepl("coi", `.variable`)) %>%          # remove conditional one inflation
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
    ggplot(aes(y = .variable, x = .value)) +
-   stat_halfeye(.width = c(0.05,0.95),size = 4,fill = "#b5ccb9") +
+   stat_halfeye(.width = c(0.95),size = 4,fill = "#b5ccb9") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
    labs(x = "Coefficient estimate \n(scaled)", 
         y = "",
-        subtitle = "<span style='color: #b5ccb9'>**c) Comp. 3: effect on <br>
-        intermediate fractions**</span>") +
+        subtitle = "<span style='color: #b5ccb9'>**c) Component 3: <br> 
+        effect on intermediate <br>
+        fractions**</span>") +
    theme_minimal_hgrid(font_size) +
    theme(
-     axis.text.y.left = ggtext::element_markdown(hjust = 1),
      axis.line.y = element_line(colour = 'gray'),
      plot.subtitle = ggtext::element_markdown(size = font_size,
-                                              vjust = 5),
+                                              margin = ggplot2::margin(0,0,subtitle_vmargin,0)),
      axis.title.x = element_text(hjust = 0.5),
      legend.position = "none") 
 
 ## c) Plot grid and export ----
+y_hist <- .81
+x_hist <- .6
+width_hist <- .24
+height_hist <- .08
+
 pg <- cowplot::plot_grid(ggdraw(p1) +
-                     draw_plot(hist_zoi, .9, .85, .12, .1) , 
+                     draw_plot(hist_zoi, 
+                               x_hist, y_hist, width_hist, height_hist
+                               # .9, .85, .12, .1
+                               ) , 
                    ggdraw(p2 + 
                             theme(axis.text.y = element_blank(),
                                   # axis.line.y = element_blank(),
                                   axis.line.y = element_line(colour = 'gray'),
                                   axis.title.y= element_blank(),
                                   axis.ticks.y= element_blank())) +
-                     draw_plot(hist_coi, .7, .85, .25, .1) ,
+                     draw_plot(hist_coi, 
+                               x_hist - .3, y_hist,width_hist *2, height_hist
+                               # .7, .85, .25, .1,
+                               ) ,
                    ggdraw(p3 + 
                             theme(axis.text.y = element_blank(),
                                   # axis.line.y = element_blank(),
                                   axis.line.y = element_line(colour = 'gray'),
                                   axis.title.y= element_blank(),
                                   axis.ticks.y= element_blank())) +
-                     draw_plot(hist_mu, .7, .85, .25, .1),
+                     draw_plot(hist_mu, 
+                               x_hist - .3, y_hist,width_hist *2, height_hist
+                               # .7, .85, .25, .1,
+                               ),
                    nrow = 1,
                    rel_widths = c(1.6, .8, .8),
                    align = 'h', axis = 'tb')
 
-ggsave2(pg, filename = 'figures/Figure_3_nn.png',
-        bg = 'white',width = 18, height = 8)
+# ggsave2(pg, filename = 'figures/Figure_3.png',
+#         bg = 'white',width = 18, height = 12)
 
-ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),
-       bg = 'white',width = 12, height = 8)
-ggsave(p3,filename = sprintf('figures/model/zoib_coi_model_%s.png',today()),
-       bg = 'white',width = 12, height = 8)
-ggsave(p2,filename = sprintf('figures/model/zoib_zoi_model_%s.png',today()),
-       bg = 'white',width = 12, height = 8)
+# ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),
+#        bg = 'white',width = 12, height = 8)
+# ggsave(p3,filename = sprintf('figures/model/zoib_coi_model_%s.png',today()),
+#        bg = 'white',width = 12, height = 8)
+# ggsave(p2,filename = sprintf('figures/model/zoib_zoi_model_%s.png',today()),
+#        bg = 'white',width = 12, height = 8)
+
+# 4. Create table of all effect sizes & CIs ----
+library(gt)
+remove <- c("coi_","zoi_")
+
+mod %>% 
+  summarise_draws( mean = ~mean(.x),
+                   q0.025 = ~quantile(.x, 0.025),
+                   q0.975 = ~quantile(.x, 0.975),
+                   .num_args = list(sigfig = 2, notation = "dec")) %>% 
+  filter(!grepl("phi", variable),
+         str_detect(variable, "^b_")) %>% 
+  mutate(summary = sprintf("%.2f (%.2f, %.2f)", mean, `2.5%`, `97.5%`),
+         sign = (`2.5%` > 0 & `97.5%` > 0) | (`2.5%` < 0 & `97.5%` < 0) ) %>% 
+  select(c(variable,summary, sign)) %>%
+  mutate(
+    category = case_when(
+      str_detect(variable, "_zoi") ~ "zoi",
+      str_detect(variable, "_coi") ~ "coi",
+      TRUE ~ "none"
+      ),
+    # remove prefixes
+    variable = str_remove_all(variable, paste(remove, collapse = "|")) ) %>%
+  # reshape table
+  pivot_wider(
+    names_from = category,
+    values_from = c(summary, sign),
+    names_glue = "{category}_{.value}"
+  ) %>% 
+  # rename variable labels
+  mutate(variable = coalesce(mod_labs[variable], variable),
+         variable = str_remove(variable, "^b_")) %>% 
+  # reorder columns
+  select(variable, zoi_summary, coi_summary, none_summary, 
+         zoi_sign, coi_sign, none_sign) %>% 
+  # reorder rows to match Figure 3
+  arrange(desc(row_number())) %>%
+  { .[c(2, 1, 3:nrow(.)), ] } %>% 
+  # format as gtable
+  gt() %>% 
+  fmt_markdown(columns = variable) %>% 
+  tab_style(
+    style = cell_text(v_align = "top", weight = 'bold'),
+    locations = cells_column_labels()) %>% 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = zoi_summary,
+      rows = zoi_sign == TRUE
+    )
+  ) %>% 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = coi_summary,
+      rows = coi_sign == TRUE
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = none_summary,
+      rows = none_sign == TRUE
+    )
+  ) %>%
+  cols_hide(
+    columns = c(zoi_sign, coi_sign, none_sign)
+  ) %>% 
+  # rename column labels
+  cols_label(
+    variable = "Predictor",
+    zoi_summary = "Component 1",
+    coi_summary = "Component 2",
+    none_summary = "Component 3",
+  ) %>% 
+  gtsave(filename = "tables/Table_S11_oldmod.html")
+  
 
