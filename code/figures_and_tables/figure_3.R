@@ -23,8 +23,8 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
-mod <- readRDS("zoi_beta_model_2024-03-28.rds") # zoi, phi & coi are fitted with predictors
-# mod <- readRDS("zoi_beta_model_2024-08-26.rds") # zoi, phi & coi are fitted with predictors
+# mod <- readRDS("zoi_beta_model_2024-03-28.rds") # zoi, phi & coi are fitted with predictors
+mod <- readRDS("zoi_beta_model_2024-08-26.rds") # zoi, phi & coi are fitted with predictors
 summary(mod)
 model_data_scaled <- mod$data
 
@@ -131,13 +131,13 @@ mod_labs <-c(b_elevation = 'Elevation',
              b_northness = 'Northness',
              b_eastness = 'Eastness',
              b_tpi_500 = expression(Landform~(TPI[500~m])),
-             # b_LST = expression(atop(Land~surface~cooling,
+             # b_LST = expression(atop(Land~surface~temperature,
              #                         (LST[Landsat])) ),
              # b_NDVI = expression(atop(Greenness,
              #                          (NDVI[Landsat])) ),
              # b_NDVI_sd = expression(atop(Greenness~heterogeneity,
              #                             (sigma~NDVI[Planet])) )
-             b_LST = expression(Land~surface~cooling~(LST[Landsat])),
+             b_LST = expression(Land~surface~temperature~(LST[Landsat])),
              b_NDVI = expression(Greenness~(NDVI[Landsat])), 
              b_NDVI_sd = expression(Greenness~heterogeneity~(sigma~NDVI[Planet]))
 )
@@ -148,7 +148,7 @@ mod_labs <-c(b_elevation = 'Elevation',
              b_northness = 'Northness',
              b_eastness = 'Eastness',
              b_tpi_500 = "Landform (<i>TPI<sub>500 m</sub></i>)",
-             b_LST = "Land surface cooling<br>(<i>LST<sub>Landsat</sub></i>)",
+             b_LST = "Land surface temperature<br>(<i>LST<sub>Landsat</sub></i>)",
              b_NDVI = "Greenness<br>(<i>NDVI<sub>Landsat</sub></i>)", 
              b_NDVI_sd = "Greenness heterogeneity<br>(<i>&sigma; NDVI<sub>Planet</sub></i>)")
 # Plot the posterior estimates, more info here: 
@@ -263,8 +263,8 @@ pg <- cowplot::plot_grid(ggdraw(p1) +
                    rel_widths = c(1.6, .8, .8),
                    align = 'h', axis = 'tb')
 
-# ggsave2(pg, filename = 'figures/Figure_3.png',
-#         bg = 'white',width = 18, height = 12)
+ggsave2(pg, filename = 'figures/Figure_3.png',
+        bg = 'white',width = 18, height = 12)
 
 # ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),
 #        bg = 'white',width = 12, height = 8)

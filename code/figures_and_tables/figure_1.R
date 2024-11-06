@@ -203,7 +203,7 @@ p2 <- ggplot() +
                          ifelse(x<1, 
                                 scales::rescale(x,
                                                 to = to,
-                                                from = c(min(x, na.rm = TRUE), 0.98)),
+                                                from = c(min(x, na.rm = TRUE), 0.99)),
                                 1)},
                          # begin = .15, end = .85,
                          na.value = "white",
@@ -281,16 +281,34 @@ p4 <- ggplot(data = df_bf_in_comp,
   theme_cowplot(font_size) + 
   theme(legend.position = 'none',
         plot.margin = unit(c(0,1,0,0), "cm"),
+        # plot.background = element_rect(fill = 'white'),
         aspect.ratio=1) 
+
+## make legend for binary maps ----
+# create dummy plot
+gplot <- ggplot(data.frame(X = c(1,1),
+                           Y = c("burned","unburned"),
+                           Class = c("burned","unburned")),
+                aes(X, Y, color = Class)) +    
+  geom_point(size = 7,shape = 15) +
+  scale_color_manual(values = binary_colors,
+                     labels = c("Burned","Unburned")) +
+  theme_cowplot(font_size) + 
+  theme(legend.title = element_blank())
+
+# Grab legend from gplot and draw
+leg <- ggdraw(get_legend(gplot))    
 
 ## make color bar ----
 cb <- ggplot() +
-   geom_tile(aes(x = 1, y = seq(0,1,.01),
-                 fill = seq(0,1,.01)),
-             show.legend = FALSE ) +
-   # scale_fill_viridis_c(option = 'rocket',
-   #                     direction = -1,
-   #                     limits = c(0,10)) +
+  geom_tile(aes(x = 1, y = seq(0,1,.01),
+                fill = seq(0,1,.01)),
+            show.legend = FALSE ) +
+  # adjust y axis styling
+  scale_y_continuous(labels=label_percent(),
+                     position = "right",
+                     expand = c(0,0)) +
+  # apply colorscheme from map
   scale_fill_viridis_c(option = 'rocket',
                        direction = -1,
                        # rescale color ramp to highlight intermediate fractions
@@ -298,7 +316,7 @@ cb <- ggplot() +
                          ifelse(x<1, 
                                 scales::rescale(x,
                                                 to = to,
-                                                from = c(min(x, na.rm = TRUE), 0.98)),
+                                                from = c(min(x, na.rm = TRUE), 0.99)),
                                 1)},
                        # begin = .15, end = .85,
                        na.value = "white",
@@ -307,13 +325,25 @@ cb <- ggplot() +
                          title.position = 'bottom',
                          title = NULL),
                        limits = c(0,1),
-                       labels =label_percent()
-  ) +
-   annotate("text", x = 1, y = .5,
-            label = "Burned fraction", color = "white",
-            size = 8,angle = 90, hjust = 0.5, vjust = 0.5) +
-  theme(plot.margin = unit(c(0,-.5,0,0), "cm")) +
-  theme_void()
+                       labels = label_percent() ) +
+  # annotate within bar
+  annotate("text", x = 1, y = .5,
+           label = "Burned fraction", color = "white",
+           size = 8,angle = 90, hjust = 0.5, vjust = 0.5) +
+  theme_cowplot(font_size) +
+  theme(plot.margin = unit(c(0,0,0,0), "cm"),
+        # adjust x axis
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.line.x=element_blank(),
+        # adjust y axis
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        # axis.line.y=element_blank(),
+        # axis.ticks.y = element_line(linewidth = 1),
+        axis.ticks.length = unit(0.3, "cm"))
+  
 
 ## make plot grid ----
 pmap <- ggdraw() + 
@@ -321,17 +351,15 @@ pmap <- ggdraw() +
   theme(plot.margin = unit(c(0,0,0,0), "cm"))
 
 bottom_four <- cowplot::plot_grid(
-                  p1,NULL,NULL,p3, 
-                  p2,NULL,cb,p4,
-                  labels = c('b)','','','c)',
-                             'd)','','','e)'),
+                  p1,NULL,leg,NULL,p3, 
+                  p2,NULL,cb,NULL,p4,
+                  labels = c('b)','','','','c)',
+                             'd)','','','','e)'),
                   label_size = font_size, 
                   hjust = 0, label_x = .1,
                   greedy = FALSE,
-                  ncol = 4,
-                  scale = c(1,1,1,1,
-                            1,1,1,1),
-                  rel_widths = c(1, -.2,.4,1),
+                  ncol = 5,
+                  rel_widths = c(1,-.28,.5,-.05,1),
                   align = 'hv', axis = 'tb')
 
 pg <- plot_grid(pmap,NULL, bottom_four, 
