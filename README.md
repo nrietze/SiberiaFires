@@ -1,4 +1,4 @@
-# Content
+# Fine-scale burn patterns in Siberian tundra fires - Code and Data Repository
 This repository contains the code and tabular data to generate the output for Rietze et al. (in prep.): Pre-fire Vegetation Conditions and Topography Shape Burn Mosaics of Siberian Tundra Fire Scars.
 
 Last update to this readme: 11 November 2024.
