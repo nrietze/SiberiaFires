@@ -1,5 +1,6 @@
 # Script to classify Planet VNIR imagery to burned area maps
-# Nils Rietze nils.rietze@uzh.ch 16 November 2023
+# Nils Rietze nils.rietze@uzh.ch 
+# 16 November 2023
 
 library(terra)
 library(sf)
@@ -419,7 +420,7 @@ predict_burned_area <- function(aoi_name,
 } # end of function
 
 
-# Execute function ----
+# Execute function (across clusters)----
 
 if(predict_all_aois){
   # setup cluster

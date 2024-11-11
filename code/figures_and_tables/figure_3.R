@@ -23,9 +23,12 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
-# mod <- readRDS("zoi_beta_model_2024-03-28.rds") # zoi, phi & coi are fitted with predictors
-mod <- readRDS("zoi_beta_model_2024-08-26.rds") # zoi, phi & coi are fitted with predictors
+# Load ZOIB model results
+# mod <- readRDS("zoi_beta_model_2024-03-28.rds") 
+mod <- readRDS("zoi_beta_model_2024-08-26.rds")
 summary(mod)
+
+# retrieve predictor and response data as table
 model_data_scaled <- mod$data
 
 # 2. Model quality reporting ----
@@ -131,12 +134,6 @@ mod_labs <-c(b_elevation = 'Elevation',
              b_northness = 'Northness',
              b_eastness = 'Eastness',
              b_tpi_500 = expression(Landform~(TPI[500~m])),
-             # b_LST = expression(atop(Land~surface~temperature,
-             #                         (LST[Landsat])) ),
-             # b_NDVI = expression(atop(Greenness,
-             #                          (NDVI[Landsat])) ),
-             # b_NDVI_sd = expression(atop(Greenness~heterogeneity,
-             #                             (sigma~NDVI[Planet])) )
              b_LST = expression(Land~surface~temperature~(LST[Landsat])),
              b_NDVI = expression(Greenness~(NDVI[Landsat])), 
              b_NDVI_sd = expression(Greenness~heterogeneity~(sigma~NDVI[Planet]))
@@ -163,7 +160,8 @@ p1 <- mod %>%
    filter(grepl("zoi", `.variable`)) %>%           # remove precision parameters
    mutate(`.variable` = gsub("zoi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
-   ggplot(aes(y = .variable, x = .value)) +
+   # build plot 
+  ggplot(aes(y = .variable, x = .value)) +
     stat_halfeye(.width = c(0.95),size = 4,fill = "#E8CEB6") +
     geom_vline(xintercept = 0, linewidth = 0.3) +
     scale_y_discrete(labels = mod_labs) +
@@ -187,7 +185,8 @@ p2 <- mod %>%
    filter(grepl("coi", `.variable`)) %>%           # remove precision parameters
    mutate(`.variable` = gsub("coi_", "", `.variable`) ) %>%
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
-   ggplot(aes(y = .variable, x = .value)) +
+   # build plot 
+  ggplot(aes(y = .variable, x = .value)) +
    stat_halfeye(.width = c(0.95),size = 4,fill = "#BF96AB") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
@@ -211,7 +210,8 @@ p3 <- mod %>%
    filter(!grepl("zoi", `.variable`)) %>%          # remove zero-one-inflation
    filter(!grepl("coi", `.variable`)) %>%          # remove conditional one inflation
    mutate(`.variable` = factor(`.variable`,levels = names(mod_labs))) %>% 
-   ggplot(aes(y = .variable, x = .value)) +
+   # build plot 
+  ggplot(aes(y = .variable, x = .value)) +
    stat_halfeye(.width = c(0.95),size = 4,fill = "#b5ccb9") +
    geom_vline(xintercept = 0, linewidth = 0.3) +
    scale_y_discrete(labels = mod_labs) +
@@ -237,35 +237,32 @@ height_hist <- .08
 pg <- cowplot::plot_grid(ggdraw(p1) +
                      draw_plot(hist_zoi, 
                                x_hist, y_hist, width_hist, height_hist
-                               # .9, .85, .12, .1
                                ) , 
                    ggdraw(p2 + 
                             theme(axis.text.y = element_blank(),
-                                  # axis.line.y = element_blank(),
                                   axis.line.y = element_line(colour = 'gray'),
                                   axis.title.y= element_blank(),
                                   axis.ticks.y= element_blank())) +
                      draw_plot(hist_coi, 
                                x_hist - .3, y_hist,width_hist *2, height_hist
-                               # .7, .85, .25, .1,
                                ) ,
                    ggdraw(p3 + 
                             theme(axis.text.y = element_blank(),
-                                  # axis.line.y = element_blank(),
                                   axis.line.y = element_line(colour = 'gray'),
                                   axis.title.y= element_blank(),
                                   axis.ticks.y= element_blank())) +
                      draw_plot(hist_mu, 
                                x_hist - .3, y_hist,width_hist *2, height_hist
-                               # .7, .85, .25, .1,
                                ),
                    nrow = 1,
                    rel_widths = c(1.6, .8, .8),
                    align = 'h', axis = 'tb')
 
+# export entire plot
 ggsave2(pg, filename = 'figures/Figure_3.png',
         bg = 'white',width = 18, height = 12)
 
+# Save subplots individually
 # ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),
 #        bg = 'white',width = 12, height = 8)
 # ggsave(p3,filename = sprintf('figures/model/zoib_coi_model_%s.png',today()),

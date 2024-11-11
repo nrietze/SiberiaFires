@@ -1,4 +1,4 @@
-# Script to plot unburned patch metrics
+# Script to plot binary burned area maps and burned fractions
 # Nils Rietze: nils.rietze@uzh.ch 
 # 26 March 2024
 
@@ -145,7 +145,7 @@ binary_colors <- c("unburned" = magma_2[1],"burned" = magma_2[2])
 xtext <- 544500
 ytext <- 7871400
 
-(p1 <- ggplot() +
+p1 <- ggplot() +
   geom_spatraster(data = ba, show.legend = FALSE) +
     scale_fill_manual(values = binary_colors,
                       na.value = "white",
@@ -180,22 +180,11 @@ ytext <- 7871400
            legend.justification = "center",
            panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
      labs(fill = NULL,
-          subtitle = "Burned area PlanetScope \n (3 m x 3 m)"))
+          subtitle = "Burned area PlanetScope \n (3 m x 3 m)")
 
 ## Subfigure 2 - burned fraction map ----
 p2 <- ggplot() +
   geom_spatraster(data = fraction_burned, show.legend = FALSE) +
-    # scale_fill_viridis_c(option = 'rocket',
-    #                      direction = -1,
-    #                      # begin = .15, end = .85,
-    #                      na.value = "white",
-    #                      guide = guide_colorbar(
-    #                        # direction = "horizontal",
-    #                        title.position = 'bottom',
-    #                        title = NULL),
-    #                      limits = c(0,1),
-    #                      labels =label_percent()
-    # ) +
   scale_fill_viridis_c(option = 'rocket',
                        direction = -1,
                        # rescale color ramp to highlight intermediate fractions
@@ -228,7 +217,7 @@ p2 <- ggplot() +
           legend.key.width = unit(0.05, "npc"),
           legend.key.height = unit(.152, "npc"),
           panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
-    labs(fill = NULL,subtitle = "Aggregated burned fraction \n (30 m x 30 m)");p2
+    labs(fill = NULL,subtitle = "Aggregated burned fraction \n (30 m x 30 m)")
 
 ## Subfigure 3 - Landsat burned area map ----
 p3 <- ggplot() +
@@ -254,7 +243,7 @@ p3 <- ggplot() +
          plot.margin = unit(c(0,1,0,0), "cm"),
          panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
    labs(fill = NULL,
-        subtitle = "Burned area Landsat \n (30 m x 30 m)");p3
+        subtitle = "Burned area Landsat \n (30 m x 30 m)")
 
 ## Subfigure 4 - plot distributions of burned fraction per Landsat class ----
 df_bf_in_comp <- GetBurnedArea("Kosukhino",
@@ -269,8 +258,9 @@ p4 <- ggplot(data = df_bf_in_comp,
                    scale = "width",
                    size = 0.2,alpha = 0.8) +
   geom_point(aes(y = burned_fraction, color = group),
-             position = position_jitter(width = 0.15), size = 1, alpha = 0.1) +
-  geom_boxplot(lwd = 0.3, width = .2,outlier.shape = NA, alpha = 0.6) +
+             position = position_jitter(width = 0.15), 
+             size = 1, alpha = 0.1) +
+  # geom_boxplot(lwd = 0.3, width = .2,outlier.shape = NA, alpha = 0.6) +
   labs(y = NULL, x = NULL) +
   scale_y_continuous(labels = label_percent(),
                      expand = c(0,0)) +
@@ -294,20 +284,29 @@ gplot <- ggplot(data.frame(X = c(1,1),
   scale_color_manual(values = binary_colors,
                      labels = c("Burned","Unburned")) +
   theme_cowplot(font_size) + 
-  theme(legend.title = element_blank())
+  theme(legend.title = element_blank(),
+        plot.margin = unit(c(0,1,0,0), "cm"))
 
 # Grab legend from gplot and draw
 leg <- ggdraw(get_legend(gplot))    
 
 ## make color bar ----
 cb <- ggplot() +
+  # 0 - 99 % tile
   geom_tile(aes(x = 1, y = seq(0,1,.01),
                 fill = seq(0,1,.01)),
             show.legend = FALSE ) +
+  # 100 % tile
+  geom_tile(aes(x = 1, y = seq(0.995,1.1,.01)),
+            fill = "black",
+            show.legend = FALSE ) +
   # adjust y axis styling
-  scale_y_continuous(labels=label_percent(),
-                     position = "right",
-                     expand = c(0,0)) +
+  scale_y_continuous(
+    # limits = c(0,.99),
+    labels=label_percent(),
+    breaks = c(0,.25,.5,.75,.99),
+    position = "left",
+    expand = c(0,0)) +
   # apply colorscheme from map
   scale_fill_viridis_c(option = 'rocket',
                        direction = -1,
@@ -321,7 +320,6 @@ cb <- ggplot() +
                        # begin = .15, end = .85,
                        na.value = "white",
                        guide = guide_colorbar(
-                         # direction = "horizontal",
                          title.position = 'bottom',
                          title = NULL),
                        limits = c(0,1),
@@ -330,8 +328,11 @@ cb <- ggplot() +
   annotate("text", x = 1, y = .5,
            label = "Burned fraction", color = "white",
            size = 8,angle = 90, hjust = 0.5, vjust = 0.5) +
+  annotate("text", x = 1, y = 1.05,
+           label = "100%", color = "white",
+           size = 5, hjust = 0.5, vjust = 0.5) +
   theme_cowplot(font_size) +
-  theme(plot.margin = unit(c(0,0,0,0), "cm"),
+  theme(plot.margin = unit(c(0,1,0,0), "cm"),
         # adjust x axis
         axis.title.x=element_blank(),
         axis.text.x=element_blank(),
@@ -339,11 +340,7 @@ cb <- ggplot() +
         axis.line.x=element_blank(),
         # adjust y axis
         axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        # axis.line.y=element_blank(),
-        # axis.ticks.y = element_line(linewidth = 1),
         axis.ticks.length = unit(0.3, "cm"))
-  
 
 ## make plot grid ----
 pmap <- ggdraw() + 
@@ -351,7 +348,7 @@ pmap <- ggdraw() +
   theme(plot.margin = unit(c(0,0,0,0), "cm"))
 
 bottom_four <- cowplot::plot_grid(
-                  p1,NULL,leg,NULL,p3, 
+                  p1,leg,NULL,NULL,p3, 
                   p2,NULL,cb,NULL,p4,
                   labels = c('b)','','','','c)',
                              'd)','','','','e)'),
@@ -359,8 +356,8 @@ bottom_four <- cowplot::plot_grid(
                   hjust = 0, label_x = .1,
                   greedy = FALSE,
                   ncol = 5,
-                  rel_widths = c(1,-.28,.5,-.05,1),
-                  align = 'hv', axis = 'tb')
+                  rel_widths = c(1,-0.1,.4,-.05,1),
+                  align = 'hv', axis = 'trbl')
 
 pg <- plot_grid(pmap,NULL, bottom_four, 
                 rel_heights = c(1,-.08,1),

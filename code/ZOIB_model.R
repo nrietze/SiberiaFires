@@ -1,3 +1,6 @@
+# Script to  model burned fractions using the ZOIB model
+# Nils Rietze: nils.rietze@uzh.ch 
+
 library(terra)
 library(tidyverse)
 library(tidyterra)
@@ -17,7 +20,7 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
   project('EPSG:32655') %>% 
   mutate(., id = 1:nrow(.))
 
-# Provide a part of the AOI name for processing
+# Provide a part of the AOI name for processing (using old notation for sites)
 if (model_all_aois){
   aoi_names <- c("Berelech",
                  "LargeScarCenter",
@@ -32,7 +35,7 @@ if (model_all_aois){
 
 # 2. Prepare data ----
 prepare_data <- function(aoi_name, window_side_length){
-  
+  # matching new site names
   aoi_names_new <- c("Berelech" = "Berelech",
                      "LargeScarCenter" = "Lapcha",
                      "LargeScarControl" = "Keremesit",
@@ -97,7 +100,7 @@ prepare_data <- function(aoi_name, window_side_length){
   }
   names(lst) <- 'LST'
   
-  # Create raster grid template for PLanetScope & ArcticDEM data
+  # Create raster grid template to aggregate PlanetScope & ArcticDEM data
   if (window_side_length == 30 ){ # Use landsat raster as template if grid cells are 30 x 30 m
     raster_grid_template <- rast(ext(lst), resolution=res(lst)) 
     crs(raster_grid_template) <- crs(lst)
@@ -132,6 +135,7 @@ prepare_data <- function(aoi_name, window_side_length){
       crop(aoi)
   }
 
+  # compute NDVI
   ndvi <- ((nir - red) / (nir + red)) 
   names(ndvi) <- 'NDVI'
   
@@ -153,6 +157,7 @@ prepare_data <- function(aoi_name, window_side_length){
   
   dem_og <- rast(dem_files[raster_index]) %>% crop(aoi)
   
+  # resample DEM to 30 m
   dem <- resample(dem_og,raster_grid_template, method = 'cubicspline')
   names(dem) <- 'elevation'
   
@@ -178,9 +183,9 @@ prepare_data <- function(aoi_name, window_side_length){
   names(eastness) <- 'eastness'
   
   ### TPI ----
-  # tpi_files <- list.files(dem_path,pattern = 'aoi.*_tpi_.*\\.tif$',full.names = T)
   tpi_files <- list.files(dem_path,pattern = 'aoi.*_tpi_v3.*\\.tif$',full.names = T)
   raster_index <- grep(paste0("aoi_", aoi_name_old, "_"), tpi_files)
+  
   tpi_500 <- rast(tpi_files[raster_index]) 
   names(tpi_500) <- 'tpi_500'
   
@@ -227,8 +232,8 @@ prepare_data <- function(aoi_name, window_side_length){
   ### water mask ----
   if(use_planet_wa){
     wa_path <- list.files('data/geodata/raster/water_area/planet/',
-                        pattern = paste0(aoi_name_old,'.*water_area_top5TD\\.tif$'),
-                        full.names = TRUE)
+                          pattern = paste0(aoi_name_old,'.*water_area_top5TD\\.tif$'),
+                          full.names = TRUE)
     wa <- rast(wa_path) %>% 
       crop(aoi) %>% 
       resample(raster_grid_template,'mode')
@@ -311,10 +316,6 @@ load_data <- function(aoi_name, path){
     cat(sprintf('Data found for %s, loading data ... \n',aoi_name_new))
 
     data <- read.csv(csv_path)
-    
-    # if (grep("elevation.1",colnames(data))){
-    #   data <- rename(data, c("tpi_500" = "elevation.1"))
-    # }
 
     return(data)
   } else{
@@ -323,10 +324,6 @@ load_data <- function(aoi_name, path){
 
     return(data)
   }
-  # prepare_data(aoi_name,window_side_length)
-  # 
-  # data <- read.csv(csv_path)
-  # return(data)
 }
 
 # 3. Apply model ----

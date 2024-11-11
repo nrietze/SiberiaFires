@@ -401,11 +401,11 @@ pg1 <- pg +
                 family = 'ESRI arrowhead'),
             size = textsize, colour = 'gray20') +
   geom_text(aes(x = 0.05, y = 0.6,hjust = "left",
-                label = 'Drone position (looking southeast)',fontface = 'bold'),
+                label = 'Drone viewshed in (c) (southeast)',fontface = 'bold'),
             size = textsize, colour = 'gray20')
 
 
-ggsave2(pg1, filename ='figures/Figure_2_nn.png',
+ggsave2(pg1, filename ='figures/Figure_2.png',
         device = png, type = "cairo",
         bg = 'white',width = 12, height = 16)
 
@@ -478,11 +478,6 @@ mean_area_m2_per_site %>%
 ### ii. combined ECDFs ----
 (ps2 <- all_patch_areas %>% 
     filter(class == class_to_plot) %>% 
-    # group_by(site) %>%
-    # arrange(desc(area_m2)) %>%
-    # slice(-(1:2)) %>%
-    # filter(area_m2 != max(area_m2)) %>% 
-    # ungroup() %>% 
     ggplot(aes(x = area_m2,colour = site)) +
     geom_vline(xintercept = 9, 
                color = "grey40",linewidth = 1,linetype = "dashed") +
@@ -508,7 +503,6 @@ mean_area_m2_per_site %>%
     scale_x_continuous(expand = c(1e-2, 0.25),trans='log10',
                        limits = c(8,1e5),
                        labels = label_number()) +
-    # scale_color_manual(values = site_colors) +
     scale_color_viridis_d(option = "inferno", end = .8) +
     labs(x = expression(Unburned~patch~size~(m^2)),
          y = "Cumulative Percentage (%)",color = 'Site') +
