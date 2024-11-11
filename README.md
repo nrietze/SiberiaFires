@@ -4,13 +4,13 @@ This repository contains the code and tabular data to generate the output for Ri
 Last update to this readme: 11 November 2024.
 
 - [1. Repository structure](#1-repo-structure)
-- [2. Required data and software](#2-required-data)
-- [3. Analysis workflow](#3-analysis-workflow)
+- [2. Required data and software](#2-required-data-and-software)
+- [3. Contact](#3-contact)
 - [4. Acknowledgements](#4-acknowledgements)
 - [5. Citation](#5-citation)
 - [6. License](#6-license)
 
-## Repository structure:
+## 1. Repository structure
 Here is the structure of this repo, files have been excluded from this tree for readability.
 
 ```bash
@@ -50,7 +50,7 @@ Here is the structure of this repo, files have been excluded from this tree for 
 
 [\[back to content\]](#content)
 
-## Required data and software
+## 2. Required data and software
 The necessary data to run the code is publicly available under [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.12650945-blue)](https://doi.org/10.5281/zenodo.12650945).
 
 The data pre-processing and data analysis was using R 4.2.2 (2022-10-31 ucrt). Newer versions of these software packages will likely work, but have not been tested.
@@ -59,26 +59,26 @@ Code development and processing were carried out in Windows 10 (64 bit), but exe
 
 [\[back to content\]](#content)
 
-## Contact
+## 3. Contact
 Code development and maintenance: Nils Rietze ([nils.rietze@uzh.ch](nils.rietze@uzh.ch))
 
 [\[back to content\]](#content)
 
-## Acknowledgements
+## 4. Acknowledgements
 
 From the manuscript:
 *N.R. was supported through the TRISHNA Science and Electronics Contribution (T-SEC), ESA PRODEX Trishna T-SEC project (PEA C4000133711). Field work and vegetation sample processing were conducted in the scope of State Assignment of the Ministry of Science and Higher Education of the Russian Federation (Project  АААА-А21-121012190038-0), using the equipment of the Centre for collective use of Federal Research Centre «Yakut Scientific Centre» (grant no. 13.TsKP.21.0016). We would like to thank Planet Labs for free access to PlanetScope imagery. We would like to thank Tim Gyger for helpful discussions regarding our statistical analysis. The authors declare no competing interests.*
 
 [\[back to content\]](#content)
 
-## Citation
+## 5. Citation
 When citing elements in this repository, please cite as:
 
 Rietze, N., Heim, R., Troeva, E., Schaepman-Strub, G., Assmann, J. J. (in prep.). Pre-fire Vegetation Conditions and Topography Shape Burn Mosaics of Siberian Tundra Fire Scars. 
 
 [\[back to content\]](#content)
 
-## License
+## 6. License
 The scripts in this repository (*.R files) are licensed under the MIT license (see [license text](https://github.com/nrietze/SiberiaFires/blob/main/LICENSE)).<br>
 
 <a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br />The remaining content in this repo is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
