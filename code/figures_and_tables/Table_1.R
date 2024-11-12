@@ -14,8 +14,20 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
 
 poly_mask <- vect('data/geodata/feature_layers/planet_masks.shp') 
 
+# matching new site names
+aoi_names_pairs <- c("Berelech" = "Berelech",
+                     "Lapcha" = "LargeScarCenter",
+                     "Keremesit" = "LargeScarControl",
+                     "Sala" = "Libenchik",
+                     "Kosukhino" = "Kosukhino",
+                     "Ebelyakh" = "DrainedThawlake"
+                     )
+
 GetBurnedArea <- function(aoi_name,product = "descals"){
-  cat(sprintf("processing %s ... \n", aoi_name))
+  aoi_name_old <- aoi_names_pairs[[aoi_name]]
+  aoi <- aois[aois$site == aoi_name_new]
+  
+  cat(sprintf("processing %s ... \n", aoi_name_new))
   
   # load burn perimeter
   bp <- vect(
@@ -97,7 +109,7 @@ GetBurnedArea <- function(aoi_name,product = "descals"){
   A_PS_unbd <- ifel(ba == "unburned",TRUE,NA) %>% 
     expanse(unit="km",transform = FALSE)
   
-  return(data.frame(site = aoi_name,A_comp = A_comp$area,
+  return(data.frame(site = aoi_name_new,A_comp = A_comp$area,
                     A_PS_unbd = A_PS_unbd$area,A_PS_bd = A_PS_bd$area))
 }
 
@@ -149,4 +161,4 @@ A %>%
   tab_style(
     style = cell_text(v_align = "top", weight = 'bold'),
     locations = cells_column_labels()) %>% 
-  gtsave(filename = "tables/Table1.html")
+  gtsave(filename = "tables/Table1.csv")

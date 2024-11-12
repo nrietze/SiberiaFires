@@ -2,44 +2,44 @@ Confusion Matrix and Statistics
 
           Reference
 Prediction unburned burned
-  unburned      341      0
-  burned          9    200
+  unburned      200      1
+  burned          0    199
                                           
-               Accuracy : 0.9836          
-                 95% CI : (0.9692, 0.9925)
-    No Information Rate : 0.6364          
-    P-Value [Acc > NIR] : < 2.2e-16       
+               Accuracy : 0.9975          
+                 95% CI : (0.9862, 0.9999)
+    No Information Rate : 0.5             
+    P-Value [Acc > NIR] : <2e-16          
                                           
-                  Kappa : 0.965           
+                  Kappa : 0.995           
                                           
- Mcnemar's Test P-Value : 0.007661        
+ Mcnemar's Test P-Value : 1               
                                           
-            Sensitivity : 0.9743          
-            Specificity : 1.0000          
-         Pos Pred Value : 1.0000          
-         Neg Pred Value : 0.9569          
-             Prevalence : 0.6364          
-         Detection Rate : 0.6200          
-   Detection Prevalence : 0.6200          
-      Balanced Accuracy : 0.9871          
+            Sensitivity : 1.0000          
+            Specificity : 0.9950          
+         Pos Pred Value : 0.9950          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5000          
+         Detection Rate : 0.5000          
+   Detection Prevalence : 0.5025          
+      Balanced Accuracy : 0.9975          
                                           
        'Positive' Class : unburned        
                                           
-bai:1.85149166529676
-ndwi:1.39911221781328
-Dbai:1.34140097919146
-gemi:1.20209291156207
-ndvi:1.02725528124506
-Dgemi:0.811486263154144
-NIR:0.788505572426645
-Green:0.73919314902576
-Red:0.72330702793217
-Blue:0.43346813626424
-rcc:0.390238960974134
-Dbcc:0.328938103515254
-gcc:0.270806540999807
-Dndwi:0.220048981576823
-Drcc:0.176246451076378
-Dndvi:0.156890864943342
-bcc:0.0994170566834014
-Dgcc:0.0473738279957598
+bai:1.73169586265774
+gemi:1.41111604314225
+ndwi:1.28467329964877
+Dbai:1.17545159692962
+Green:0.945526818194421
+NIR:0.888595030447446
+ndvi:0.84532700888682
+Dgemi:0.815576632815453
+Red:0.791518251732513
+Blue:0.631941731169447
+Dbcc:0.3389924273255
+rcc:0.310171937964075
+Drcc:0.20178028074274
+Dndwi:0.201403920125092
+gcc:0.176820135223783
+Dndvi:0.0909603065568718
+bcc:0.0735521903246368
+Dgcc:0.00800845278614082

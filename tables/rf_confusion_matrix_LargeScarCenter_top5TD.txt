@@ -2,44 +2,44 @@ Confusion Matrix and Statistics
 
           Reference
 Prediction unburned burned
-  unburned      138      2
-  burned         12    198
-                                         
-               Accuracy : 0.96           
-                 95% CI : (0.9338, 0.978)
-    No Information Rate : 0.5714         
-    P-Value [Acc > NIR] : < 2e-16        
-                                         
-                  Kappa : 0.9176         
-                                         
- Mcnemar's Test P-Value : 0.01616        
-                                         
-            Sensitivity : 0.9200         
-            Specificity : 0.9900         
-         Pos Pred Value : 0.9857         
-         Neg Pred Value : 0.9429         
-             Prevalence : 0.4286         
-         Detection Rate : 0.3943         
-   Detection Prevalence : 0.4000         
-      Balanced Accuracy : 0.9550         
-                                         
-       'Positive' Class : unburned       
-                                         
-ndwi:1.37101445449246
-gemi:1.23714795891121
-Dbai:1.01551812140603
-Dgemi:0.869085963592959
-NIR:0.837838026357427
-Blue:0.826417044842208
-Dndvi:0.803069938488547
-Green:0.78578733256937
-gcc:0.579724420576426
-bai:0.565777350002789
-Red:0.541855246652398
-ndvi:0.521016210654126
-Dndwi:0.373848194041978
-Dgcc:0.201661652258079
-rcc:0.177899396981803
-Drcc:0.102758099474544
-bcc:0.0330421677365598
-Dbcc:0.0260490549119488
+  unburned      199      2
+  burned          1    198
+                                          
+               Accuracy : 0.9925          
+                 95% CI : (0.9782, 0.9985)
+    No Information Rate : 0.5             
+    P-Value [Acc > NIR] : <2e-16          
+                                          
+                  Kappa : 0.985           
+                                          
+ Mcnemar's Test P-Value : 1               
+                                          
+            Sensitivity : 0.9950          
+            Specificity : 0.9900          
+         Pos Pred Value : 0.9900          
+         Neg Pred Value : 0.9950          
+             Prevalence : 0.5000          
+         Detection Rate : 0.4975          
+   Detection Prevalence : 0.5025          
+      Balanced Accuracy : 0.9925          
+                                          
+       'Positive' Class : unburned        
+                                          
+gemi:1.36598869634496
+ndwi:1.22797302385201
+Blue:0.979441237860301
+NIR:0.96623202889624
+Dbai:0.944952362360352
+Dgemi:0.940252427503629
+Green:0.939705393614566
+Red:0.697254278650322
+Dndvi:0.613990914836456
+bai:0.551345739246989
+gcc:0.46193306252209
+ndvi:0.433598463668103
+Dndwi:0.267722248118386
+rcc:0.170814650697004
+Dgcc:0.136421954972314
+Drcc:0.105392733781005
+bcc:0.0424372014228234
+Dbcc:0.0373349765505882

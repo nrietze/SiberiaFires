@@ -2,44 +2,44 @@ Confusion Matrix and Statistics
 
           Reference
 Prediction unburned burned
-  unburned      290      5
-  burned         60    345
+  unburned      348     31
+  burned          2    319
                                           
-               Accuracy : 0.9071          
-                 95% CI : (0.8832, 0.9276)
+               Accuracy : 0.9529          
+                 95% CI : (0.9344, 0.9673)
     No Information Rate : 0.5             
     P-Value [Acc > NIR] : < 2.2e-16       
                                           
-                  Kappa : 0.8143          
+                  Kappa : 0.9057          
                                           
- Mcnemar's Test P-Value : 2.115e-11       
+ Mcnemar's Test P-Value : 1.093e-06       
                                           
-            Sensitivity : 0.8286          
-            Specificity : 0.9857          
-         Pos Pred Value : 0.9831          
-         Neg Pred Value : 0.8519          
+            Sensitivity : 0.9943          
+            Specificity : 0.9114          
+         Pos Pred Value : 0.9182          
+         Neg Pred Value : 0.9938          
              Prevalence : 0.5000          
-         Detection Rate : 0.4143          
-   Detection Prevalence : 0.4214          
-      Balanced Accuracy : 0.9071          
+         Detection Rate : 0.4971          
+   Detection Prevalence : 0.5414          
+      Balanced Accuracy : 0.9529          
                                           
        'Positive' Class : unburned        
                                           
-gemi:1.97691663150084
-Dgemi:1.56077076624004
-NIR:1.21624652498865
-bai:1.21286318460436
-Dbai:1.13262803445747
-Dndvi:0.922476479459813
-ndvi:0.78323807682775
-ndwi:0.779701934793645
-Dndwi:0.753333399293911
-gcc:0.7171532162865
-Green:0.643814666360597
-Dbcc:0.543766177175858
-Dgcc:0.436188123570354
-Red:0.340353562553894
-rcc:0.23956935591456
-bcc:0.193891796501763
-Blue:0.146296826916109
-Drcc:0.0287219427012326
+gemi:1.98012798461167
+Dgemi:1.55905492484136
+NIR:1.24009576288784
+bai:1.22777540631942
+Dbai:1.20797120918599
+Dndvi:0.932242446985147
+ndwi:0.842629226273816
+ndvi:0.840260318622704
+Dndwi:0.778275417022395
+gcc:0.707147874870419
+Green:0.621526299213275
+Dbcc:0.544286744804172
+Dgcc:0.427234245715139
+Red:0.350777137342992
+rcc:0.253369164935378
+bcc:0.195068356771323
+Blue:0.139684913236236
+Drcc:0.0331367126782642
