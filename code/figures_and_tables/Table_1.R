@@ -25,16 +25,17 @@ aoi_names_pairs <- c("Berelech" = "Berelech",
 
 GetBurnedArea <- function(aoi_name,product = "descals"){
   aoi_name_old <- aoi_names_pairs[[aoi_name]]
+  aoi_name_new <- aoi_name
   aoi <- aois[aois$site == aoi_name_new]
   
-  cat(sprintf("processing %s ... \n", aoi_name_new))
+  cat(sprintf("processing %s, old name: %s... \n", aoi_name_new,aoi_name_old))
   
   # load burn perimeter
   bp <- vect(
-    sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',aoi_name)
+    sprintf('data/geodata/feature_layers/burn_polygons/planet/rough_burn_perimeter_%s.shp',aoi_name_old)
     )
     
-  if (aoi_name %in% c("Berelech","LargeScarCenter")){
+  if (aoi_name_old %in% c("Berelech","LargeScarCenter")){
     # aoi <- aois %>% filter(site == aoi_name)
     # poly_mask <- terra::intersect(poly_mask,aoi)
 
@@ -44,19 +45,19 @@ GetBurnedArea <- function(aoi_name,product = "descals"){
   
   # load burned fractions
   fraction_burned <- rast(
-    sprintf('data/geodata/raster/predictors/%s_predictors_30m.tif',aoi_name)
+    sprintf('data/geodata/raster/predictors/%s_predictors_30m.tif',aoi_name_old)
     ) %>% 
     select(burned_fraction) %>% 
     crop(bp)
   
   # load water mask
   wa <- rast(
-    sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name)
+    sprintf('data/geodata/raster/water_area/%s_Landsat_mask.tif',aoi_name_old)
   )
   
   # load PlanetScope burned area
   ba <- rast(
-    sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name)
+    sprintf('data/geodata/raster/burned_area/planet/%s_burned_area_top5TD.tif',aoi_name_old)
   ) 
   
   wa_3m <- resample(wa,ba)
@@ -68,7 +69,6 @@ GetBurnedArea <- function(aoi_name,product = "descals"){
   # load comparison Landsat burned areas
   if (product == "descals"){
     fn_comp <- 'data/geodata/raster/burned_area/ba_descals_landsat_2020_utm_shifted.tif'
-    # fn_desc <- 'data/geodata/raster/burned_area/ba_descals_sentinel_2020_utm_shifted.tif'
     burn_val <- 30
     
   } else if (product == "GABAM"){
@@ -148,11 +148,11 @@ A %>%
     site = "Fire Scar",
     A_PS_unbd = html("unburned area<br>km<sup>2</sup>"),
     A_PS_bd = html("burned area<br>km<sup>2</sup>"),
-    pct_unburned = html("Percentage unburned <br>%"),
+    pct_unburned = html("unburned <br>%"),
     A_desc = html("burned area<br>km<sup>2</sup>"),
-    prop_desc = html("Ratio <br> PS:LS8"),
+    prop_desc = html("Ratio <br> PS/LS8"),
     A_gabam = html("burned area<br>km<sup>2</sup>"),
-    prop_gabam = html("Ratio <br> PS:LS8")
+    prop_gabam = html("Ratio <br> PS/LS8")
   ) %>% 
   fmt_number(decimals = 1) %>% 
   tab_style(
@@ -161,4 +161,4 @@ A %>%
   tab_style(
     style = cell_text(v_align = "top", weight = 'bold'),
     locations = cells_column_labels()) %>% 
-  gtsave(filename = "tables/Table1.csv")
+  gtsave(filename = "tables/Table1.html")
