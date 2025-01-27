@@ -15,13 +15,12 @@ aois <- vect('./data/geodata/feature_layers/aoi_wv/aois_analysis.geojson') %>%
 poly_mask <- vect('data/geodata/feature_layers/planet_masks.shp') 
 
 # matching new site names
-aoi_names_pairs <- c("Berelech" = "Berelech",
+aoi_names_pairs <- c("Ebelyakh" = "DrainedThawlake",
+                     "Kosukhino" = "Kosukhino",
+                     "Berelech" = "Berelech",
                      "Lapcha" = "LargeScarCenter",
                      "Keremesit" = "LargeScarControl",
-                     "Sala" = "Libenchik",
-                     "Kosukhino" = "Kosukhino",
-                     "Ebelyakh" = "DrainedThawlake"
-                     )
+                     "Sala" = "Libenchik")
 
 GetBurnedArea <- function(aoi_name,product = "descals"){
   aoi_name_old <- aoi_names_pairs[[aoi_name]]
@@ -128,7 +127,7 @@ A <- A_desc %>%
   relocate(c(A_PS_unbd,A_PS_bd,pct_unburned),.before = A_desc)
 
 # Format and export as formatted table ----
-A %>% 
+t_1 <- A %>% 
   mutate(site = str_replace_all(site, "(?<=[a-z])(?=[A-Z])", " ")) %>% 
   gt() %>% 
   tab_spanner(
@@ -160,5 +159,6 @@ A %>%
     locations = cells_column_spanners()) %>%
   tab_style(
     style = cell_text(v_align = "top", weight = 'bold'),
-    locations = cells_column_labels()) %>% 
-  gtsave(filename = "tables/Table1.html")
+    locations = cells_column_labels())
+  
+gtsave(t_1,filename = "tables/Table1.html")

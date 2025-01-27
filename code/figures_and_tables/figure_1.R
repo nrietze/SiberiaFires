@@ -178,7 +178,8 @@ p1 <- ggplot() +
            legend.position = "right",
            legend.box = "vertical", 
            legend.justification = "center",
-           panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
+           panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
+           ) +
      labs(fill = NULL,
           subtitle = "Burned area PlanetScope \n (3 m x 3 m)")
 
@@ -206,9 +207,9 @@ p2 <- ggplot() +
     geom_spatvector(data = bp,
                     fill = NA, linewidth = 1,
                     color = 'black') +
-    scale_x_continuous(expand=c(0,0)) +
-    scale_y_continuous(expand=c(0,0)) +
-    theme_map(font_size) +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  theme_map(font_size) +
     theme(plot.subtitle = element_text(hjust = 0.5),
           plot.margin = unit(c(0,0,0,0), "cm"),
           legend.position = "right",
@@ -216,8 +217,10 @@ p2 <- ggplot() +
           legend.justification = "center",
           legend.key.width = unit(0.05, "npc"),
           legend.key.height = unit(.152, "npc"),
-          panel.border = element_rect(colour = "black", fill=NA, linewidth=1)) +
+          panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
+          ) +
     labs(fill = NULL,subtitle = "Aggregated burned fraction \n (30 m x 30 m)")
+
 
 ## Subfigure 3 - Landsat burned area map ----
 p3 <- ggplot() +
@@ -229,12 +232,12 @@ p3 <- ggplot() +
                    color = 'black') +
   # annotate perimeter
   annotate("segment", 
-           x = xtext - 500, xend = 545500, y = ytext - 900, yend = 7869200, 
+           x = xtext - 500, xend = 545500, y = ytext - 1300, yend = 7869200, 
            colour = "black",linewidth = 1) +
   # annotate("text", x = 5, y = 2.15, label = "Some text")
   geom_text(aes(x = xtext - 800, y = ytext,
-                label = 'fire \nperimeter',fontface = 'bold'),
-            size = 7,
+                label = 'PlanetScope-\nderived fire \nperimeter',fontface = 'bold'),
+            size = 5,
             colour = 'black') +
    scale_x_continuous(expand=c(0,0)) +
    scale_y_continuous(expand=c(0,0)) +
@@ -371,15 +374,74 @@ ggsave2(pg,filename = 'figures/Figure_1.png',
         bg = 'white',width = 10, height = 18)
 
 
+# subset figures for AGU
+crop_extent <- ext(547994, 548054, 7866015, 7866075)
+
+cropped_bf <- crop(fraction_burned,crop_extent)
+grid_30m <- as.polygons(cropped_bf, dissolve = FALSE)
+
+fig_ba_agu <- ggplot() +
+  geom_spatraster(data = crop(ba,crop_extent), show.legend = FALSE) +
+  geom_spatvector(data = grid_30m,
+                  fill = NA, linewidth = 1,
+                  color = 'white') +
+  scale_fill_manual(values = binary_colors,
+                    na.value = "white",
+                    labels = c('Unburned','Burned')) + 
+  theme_map(); fig_ba_agu
+
+fig_ba_30_agu <- ggplot() +
+  geom_spatraster(data = crop(ba_comp_bin,crop_extent), show.legend = FALSE) +
+  geom_spatvector(data = grid_30m,
+                  fill = NA, linewidth = 1,
+                  color = 'white') +
+  scale_fill_manual(values = binary_colors,
+                    na.value = "white") +
+  theme_map();fig_ba_30_agu
+
+fig_bf_agu <- ggplot() +
+  geom_spatraster(data = cropped_bf, show.legend = FALSE) +
+  geom_spatvector(data = grid_30m,
+                  fill = NA, linewidth = 1,
+                  color = 'white') +
+  scale_fill_viridis_c(option = 'rocket',
+                       direction = -1,
+                       # rescale color ramp to highlight intermediate fractions
+                       rescaler = function(x, to = c(0, .7), from = NULL) {
+                         ifelse(x<1, 
+                                scales::rescale(x,
+                                                to = to,
+                                                from = c(min(x, na.rm = TRUE), 0.99)),
+                                1)},
+                       # begin = .15, end = .85,
+                       na.value = "white",
+                       guide = guide_colorbar(
+                         # direction = "horizontal",
+                         title.position = 'bottom',
+                         title = NULL),
+                       limits = c(0,1),
+                       labels =label_percent()) +
+  theme_map(); fig_bf_agu
+  
+ggsave(fig_ba_agu,
+       filename = 'figures/Figure_burned_aggregation_AGU_a.png',
+       bg = NULL,width = 8, height = 8)
+ggsave(fig_ba_30_agu,
+       filename = 'figures/Figure_burned_aggregation_AGU_b.png',
+       bg = NULL,width = 8, height = 8)
+ggsave(fig_bf_agu,
+       filename = 'figures/Figure_burned_aggregation_AGU_c.png',
+       bg = NULL,width = 8, height = 8)
+
 # export figures to png
-ggsave(p1,filename = 'figures/Fig_1a.png',
-       bg = NULL,width = 12, height = 8)
-ggsave(p2,filename = 'figures/Fig_1b.png',
-       bg = NULL,width = 12, height = 8)
-ggsave(p3,filename = 'figures/Fig_1c.png',
-       bg = NULL,width = 12, height = 8)
-ggsave(p4,filename = 'figures/Fig_1d_GABAM_Kosukhino.png',
-       bg = NULL,width = 12, height = 8)
+# ggsave(p1,filename = 'figures/Fig_1a.png',
+#        bg = NULL,width = 12, height = 8)
+# ggsave(p2,filename = 'figures/Fig_1b.png',
+#        bg = NULL,width = 12, height = 8)
+# ggsave(p3,filename = 'figures/Fig_1c.png',
+#        bg = NULL,width = 12, height = 8)
+ggsave(p4,filename = 'figures/Figure_1d.png',
+       bg = NULL,width = 8, height = 8)
 
 # 4. Statistical tests ----
 tabl <- tibble()

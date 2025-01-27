@@ -263,8 +263,11 @@ ggsave2(pg, filename = 'figures/Figure_3.png',
         bg = 'white',width = 18, height = 12)
 
 # Save subplots individually
-# ggsave(p1,filename = sprintf('figures/model/zoib_mean_model_%s.png',today()),
-#        bg = 'white',width = 12, height = 8)
+# ggsave(ggdraw(p1) +
+#          draw_plot(hist_zoi, 
+#                    x_hist, y_hist, width_hist, height_hist
+#          ),filename = 'figures/Figure_3_Component1.png',
+#        bg = 'white',width = 14, height = 10)
 # ggsave(p3,filename = sprintf('figures/model/zoib_coi_model_%s.png',today()),
 #        bg = 'white',width = 12, height = 8)
 # ggsave(p2,filename = sprintf('figures/model/zoib_zoi_model_%s.png',today()),
