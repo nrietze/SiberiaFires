@@ -574,17 +574,17 @@ ggsave2(final_plot, filename ='figures/Figure_2.png',
         device = png, type = "cairo",
         bg = 'white',width = 16, height = 16)
 
-# 3. Create Figure s6: Patch size histograms for all fire scars ----
-fig_s6a <- plot_all_histograms(all_patch_areas, 1, color_ramp = "mako") # unburned patch histograms
-fig_s6b <- plot_all_histograms(all_patch_areas, 2, color_ramp = "mako") # burned patch histograms
+# 3. Create Figure s5: Patch size histograms for all fire scars ----
+fig_s5a <- plot_all_histograms(all_patch_areas, 1, color_ramp = "mako") # unburned patch histograms
+fig_s5b <- plot_all_histograms(all_patch_areas, 2, color_ramp = "mako") # burned patch histograms
 
 # create plot grid and export
-fig_s6 <- fig_s6a + fig_s6b + 
+fig_s5 <- fig_s5a + fig_s5b + 
   plot_layout(nrow = 2,heights = c(1,1)) +
   plot_annotation(tag_levels = 'a', tag_suffix = ")") &
   theme(plot.tag = element_text(size = FONT_SIZE))
 
-ggsave(fig_s6, filename ='figures/Figure_S6.png',
+ggsave(fig_s5, filename ='figures/Figure_S5.png',
        bg = 'white',width = 12, height = 8)
 
 # 4. Create Figure S6: Patch size ECDFs for all fire scars ----
@@ -594,7 +594,7 @@ fig_s6 <- plot_all_ecdf(all_patch_areas, 2, color_ramp = "mako") # burned patch 
 ggsave(fig_s6, filename ='figures/Figure_S6.png',
        bg = 'white',width = 10, height = 10)
 
-# 5. Create Table S10 & S11: Table of patch size statistics ----
+# 5. Create Table s11 & s12: Table of patch size statistics ----
 
 # Calculate largest patch index
 df_lpi <- data.frame()
@@ -628,7 +628,7 @@ mean_area_m2_per_site <- df_lpi %>%
   select(class, site, md, mdc, mu, LPI, area)
 
 # Reformat table and format to nice looking table
-t_s10 <- mean_area_m2_per_site %>%
+t_s11 <- mean_area_m2_per_site %>%
   filter(class != 2) %>% select(-class) %>% 
   mutate(site = str_replace_all(site, "(?<=[a-z])(?=[A-Z])", " ")) %>%
   gt() %>% 
@@ -646,10 +646,10 @@ t_s10 <- mean_area_m2_per_site %>%
     locations = cells_column_labels())
 
 # export
-gtsave(t_s10,filename = "tables/TableS10.html")
+gtsave(t_s11,filename = "tables/TableS11.html")
 
 # Reformat table and format to nice looking table
-t_s11 <- mean_area_m2_per_site %>%
+t_s12 <- mean_area_m2_per_site %>%
   filter(class != 1) %>% select(-class) %>% 
   mutate(site = str_replace_all(site, "(?<=[a-z])(?=[A-Z])", " ")) %>%
   gt() %>% 
@@ -667,7 +667,7 @@ t_s11 <- mean_area_m2_per_site %>%
     locations = cells_column_labels())
 
 # export
-gtsave(t_s11,filename = "tables/TableS11.html")
+gtsave(t_s12,filename = "tables/TableS12.html")
 
 # 6. Calculate statistics of newly detected burned patches ----
 all_ba_objects <- lapply(aoi_names, function(aoi_name) {
@@ -693,7 +693,7 @@ for (aoi_name_new in aoi_names_new){
 
 plot(all_ba_objects[["Kosukhino"]])
 
-# Calculate patch size statistics per burn class and site
+# Calculate patch size statistics per burn class and site (Table S13)
 df_pa <- data.frame()
 
 for (aoi_name_new in aoi_names_new) {
@@ -738,4 +738,4 @@ for (aoi_name_new in aoi_names_new) {
     style = cell_text(v_align = "top", weight = 'bold'),
     locations = cells_column_labels()))
 
-gtsave(t_s99,filename = "tables/TableS99.html")
+gtsave(t_s99,filename = "tables/TableS13.html")
