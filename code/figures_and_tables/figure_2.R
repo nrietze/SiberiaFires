@@ -219,37 +219,40 @@ plot_all_histograms <- function(all_patch_areas,CLASS_TO_PLOT, FONT_SIZE = 18, c
 } 
 
 ## d) Function to plot patch size ECDFs for all fire scars ----
-plot_all_ecdf <- function(all_patch_areas,CLASS_TO_PLOT, FONT_SIZE = 18, color_ramp = "inferno"){
+plot_all_ecdf <- function(all_patch_areas,CLASS_TO_PLOT, 
+                          FONT_SIZE = 18, color_ramp = "inferno"){
   if (CLASS_TO_PLOT == 1){
     label = expression(Unburned~patch~size~(m^2))
   } else {
     label = expression(Burned~patch~size~(m^2))
   }
   
+  annotation_size <- 8
+  
   fig <- all_patch_areas %>% 
     filter(class == CLASS_TO_PLOT) %>% 
     ggplot(aes(x = area_m2,colour = site)) +
     geom_vline(xintercept = 9,
-               color = "grey40",linewidth = 1,linetype = "dashed") +
+               color = "grey40",linewidth = 2,linetype = "dashed") +
     annotate("text", x = 10, y = 30, 
              label = "1 PlanetScope pixel",
              color = "grey40",
-             vjust = 0, hjust = 0, size = 5) +
+             vjust = 0, hjust = 0, size = annotation_size) +
     geom_vline(xintercept = 81, 
-               color = "grey40",linewidth = 1,linetype = "dashed") +
+               color = "grey40",linewidth = 2,linetype = "dashed") +
     annotate("text", x = 85, y = 40, 
              label = "3 x 3 PlanetScope pixels", 
              color = "grey40",
-             vjust = 0, hjust = 0, size = 5) +
+             vjust = 0, hjust = 0, size = annotation_size) +
     geom_vline(xintercept = 900,
-               color = "grey40",linewidth = 1,linetype = "dashed") +
+               color = "grey40",linewidth = 2,linetype = "dashed") +
     annotate("text", x = 920, y = 60, 
              label = "1 Landsat pixel", 
              color = "grey40",
-             vjust = 0, hjust = 0, size = 5) +
+             vjust = 0, hjust = 0, size = annotation_size) +
     stat_ecdf(aes(y = after_stat(y*100)),
               geom = "line",
-              pad = FALSE, linewidth = 1) +
+              pad = FALSE, linewidth = 2) +
     scale_x_continuous(
       expand = c(0, 0),
       trans='log',
@@ -417,7 +420,7 @@ if (plot_all_aois){
 }
 
 CLASS_TO_PLOT <- 1 # ( 1 = unburned, 2 = burned)
-FONT_SIZE  <- 18
+FONT_SIZE  <- 22
 
 # Initialize lists to store results
 all_patch_areas <- list()
@@ -537,7 +540,7 @@ df_patch_sizes <- all_patch_areas %>%
   filter(site == 'Kosukhino') 
 
 fig_2b <- plot_patch_size_histogram(df_patch_sizes = df_patch_sizes,
-                                CLASS_TO_PLOT = 1)
+                                    FONT_SIZE = FONT_SIZE,CLASS_TO_PLOT = 1)
 
 # Plot drone image
 fig_2c <- ggdraw() +
@@ -546,7 +549,8 @@ fig_2c <- ggdraw() +
   theme(plot.margin = unit(c(0,0,0,0), "cm"))
 
 # Plot ECDFs of unburned patch sizes for all fire scars
-fig_2d <- plot_all_ecdf(all_patch_areas, 1, color_ramp = "mako")
+fig_2d <- plot_all_ecdf(all_patch_areas, 1,
+                        FONT_SIZE = FONT_SIZE,color_ramp = "mako")
 
 # create plot_grid
 pp <- fig_2a + fig_2b + fig_2c + fig_2d + 
@@ -570,7 +574,7 @@ final_plot <- ggdraw(pp) +
   )
 
 # export figure
-ggsave2(final_plot, filename ='figures/Figure_2.png',
+ggsave2(final_plot, filename ='figures/Figure_2_check.png',
         device = png, type = "cairo",
         bg = 'white',width = 16, height = 16)
 
