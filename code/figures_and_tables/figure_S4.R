@@ -102,11 +102,13 @@ for (aoi_name in names(aoi_names_new)){
 }
 
 # 1. Create Figure s4: Relationship between burned area underestimation vs. NDVI ----
-FONT_SIZE <- 18
+FONT_SIZE <- 22
+annotation_size <- 7
 
 # Define the breakpoints and colors
 breaks <- c(-Inf, -300, 300, Inf)
 colors <- c("lightblue", "lightgreen", "lightpink")
+darker_colors <- c("#2A4365", "#2E8B57", "#8B475D")
 labels <- c("Underestimated", "Moderate", "Overestimated")
 
 # only use Kosukhino for this analysis
@@ -126,15 +128,24 @@ df_single_scar <- df_all %>%
       xmin = breaks[3], xmax = breaks[4], ymin = -Inf, ymax = Inf),
       fill = colors[3], alpha = 0.2) +
     geom_histogram(aes(x = AreaDifference)) +
-    scale_y_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0,3100)) +
     scale_x_continuous(breaks = seq(-900,900,300),
-                       labels = seq(-900,900,300)) +
+                       labels = seq(-900,900,300), 
+                       limits = c(-900,900)) +
     labs(x = "Burned area discrepancy \n Landsat - Planetscope (m²)",
          y = "Counts") + 
-    annotate("text",x = -500,y = 2e3,
-             label = "Landsat underestimates\n burned area", size = 5) +
-    annotate("text",x = 500,y = 2e3,
-             label = "Landsat overestimates\n burned area", size = 5) +
+    # Add labels for background colors
+    annotate("text", x = -600, y = 3000, label = "Under-\nestimated", 
+             vjust = 1, color = darker_colors[1],
+             size = annotation_size, fontface =2) +
+    annotate("text", x = 0, y = 3000, label = labels[2], 
+             vjust = 1, color = darker_colors[2],
+             size = annotation_size, fontface =2) +
+    annotate("text", x = 600, y = 3000, label = "Over-\nestimated", 
+             vjust = 1, color = darker_colors[3],
+             size = annotation_size, fontface =2) +
+    coord_cartesian(clip = 'off') + 
+    theme(plot.margin = unit(c(3,1,1,1), "lines")) +
     theme_cowplot(FONT_SIZE))
 
 # Plot scatter NDVI vs. sd NDVI
@@ -147,7 +158,8 @@ df_single_scar <- df_all %>%
     geom_point(alpha = 0.1) + 
     theme_cowplot(FONT_SIZE) +
     labs(x = expression(Greenness~(NDVI[Landsat])), 
-         y = expression(atop(Greenness~heterogeneity, sigma~NDVI[Planet]))) +
+         y = expression(atop(Greenness~heterogeneity, 
+                             paste("(", sigma~NDVI[Planet], ")")))) +
     theme(legend.position = "bottom",
           legend.direction = "horizontal",
           legend.title.align = 0.5, 
@@ -166,6 +178,7 @@ kw_ndvi <- kruskal.test(NDVI ~ AreaDifferenceClass, data = df_single_scar)
     rremove("legend") +
     labs(y = expression(Greenness~(NDVI[Landsat])),
          x = "") +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) +
     labs_pubr(FONT_SIZE))
 
 # Boxplot clusters vs. NDVI_sd
@@ -175,8 +188,10 @@ kw_ndvi_sd <- kruskal.test(NDVI_sd ~ AreaDifferenceClass, data = df_single_scar)
                      show.legend = FALSE) +
     stat_compare_means() +
     rremove("legend") +
-    labs(y = expression(atop(Greenness~heterogeneity, sigma~NDVI[Planet])),
+    labs(y = expression(atop(Greenness~heterogeneity, 
+                             paste("(", sigma~NDVI[Planet], ")"))),
          x = "") +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) +
     labs_pubr(FONT_SIZE))
 
 # build grid and export
@@ -186,9 +201,9 @@ fig_s4 <- fig_s4a + fig_s4b + fig_s4c + fig_s4d +
   theme(plot.tag = element_text(size = FONT_SIZE, face = "bold"))
 
 ggsave(fig_s4, filename ='figures/Figure_S4.png',
-       bg = 'white',width = 12, height = 12)
+       bg = 'white',width = 14, height = 14)
 
-# 2. Fit regression line NDVI and Area Discrepancy ----
+  # 2. Fit regression line NDVI and Area Discrepancy ----
 df_lm <- df_all %>% 
   filter(site == "Kosukhino") %>% 
   filter(AreaDifference <= 0)

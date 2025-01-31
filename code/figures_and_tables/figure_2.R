@@ -211,7 +211,7 @@ plot_all_histograms <- function(all_patch_areas,CLASS_TO_PLOT, FONT_SIZE = 18, c
       expand = c(-1e-2,0),trans='log10',limits = c(.9,1e5),
       labels = label_number()) +
     labs(x = label, y = "Counts") + 
-    facet_wrap(~site,ncol = 3) +
+    facet_wrap(.~site,ncol = 3) +
     theme_cowplot(FONT_SIZE) + 
     theme(legend.position = 'none') 
   
@@ -592,7 +592,8 @@ ggsave(fig_s5, filename ='figures/Figure_S5.png',
        bg = 'white',width = 12, height = 8)
 
 # 4. Create Figure S6: Patch size ECDFs for all fire scars ----
-fig_s6 <- plot_all_ecdf(all_patch_areas, 2, color_ramp = "mako") # burned patch ECDFs
+fig_s6 <- plot_all_ecdf(all_patch_areas, 2,FONT_SIZE = FONT_SIZE,
+                        color_ramp = "mako") # burned patch ECDFs
 
 # export 
 ggsave(fig_s6, filename ='figures/Figure_S6.png',
